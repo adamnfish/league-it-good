@@ -1,40 +1,118 @@
 import requests
 import json
+import os
 from datetime import datetime
 
-def get_fpl_league_data(league_id):
-    """Fetch FPL league standings data"""
+def get_cache_path(gameweek, cache_type, league_id=None, manager_id=None):
+    """Generate cache file path"""
+    cache_dir = f"fpl_cache/gw{gameweek}"
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    if cache_type == "bootstrap":
+        return f"{cache_dir}/bootstrap.json"
+    elif cache_type == "league":
+        return f"{cache_dir}/league_{league_id}.json"
+    elif cache_type == "manager":
+        return f"{cache_dir}/manager_{manager_id}.json"
+    
+def load_from_cache(cache_path):
+    """Load data from cache if it exists"""
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                print(f"📁 Loading from cache: {cache_path}")
+                return json.load(f)
+        except Exception as e:
+            print(f"❌ Cache read error: {e}")
+    return None
+
+def save_to_cache(data, cache_path):
+    """Save data to cache"""
+    try:
+        with open(cache_path, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"💾 Saved to cache: {cache_path}")
+    except Exception as e:
+        print(f"❌ Cache write error: {e}")
+
+def get_fpl_league_data(league_id, gameweek=None):
+    """Fetch FPL league standings data with caching"""
+    cache_path = get_cache_path(gameweek, "league", league_id=league_id) if gameweek else None
+    
+    # Try cache first
+    if cache_path:
+        cached_data = load_from_cache(cache_path)
+        if cached_data:
+            return cached_data
+    
+    # Fetch from API
     url = f"https://fantasy.premierleague.com/api/leagues-classic/{league_id}/standings/"
     
     try:
+        print(f"🌐 Fetching league data from API...")
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
+        
+        # Save to cache
+        if cache_path:
+            save_to_cache(data, cache_path)
+        
         return data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data: {e}")
         return None
 
 def get_manager_gameweek_data(manager_id, gameweek):
-    """Get detailed gameweek data for a specific manager"""
+    """Get detailed gameweek data for a specific manager with caching"""
+    cache_path = get_cache_path(gameweek, "manager", manager_id=manager_id)
+    
+    # Try cache first
+    cached_data = load_from_cache(cache_path)
+    if cached_data:
+        return cached_data
+    
+    # Fetch from API
     url = f"https://fantasy.premierleague.com/api/entry/{manager_id}/event/{gameweek}/picks/"
     
     try:
+        print(f"🌐 Fetching manager {manager_id} data from API...")
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        # Save to cache
+        save_to_cache(data, cache_path)
+        
+        return data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching manager data: {e}")
         return None
 
-def get_bootstrap_data():
-    """Get general FPL data including player names"""
+def get_bootstrap_data(gameweek=None):
+    """Get general FPL data including player names with caching"""
+    cache_path = get_cache_path(gameweek, "bootstrap") if gameweek else None
+    
+    # Try cache first
+    if cache_path:
+        cached_data = load_from_cache(cache_path)
+        if cached_data:
+            return cached_data
+    
+    # Fetch from API
     url = "https://fantasy.premierleague.com/api/bootstrap-static/"
     
     try:
+        print(f"🌐 Fetching bootstrap data from API...")
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        
+        # Save to cache
+        if cache_path:
+            save_to_cache(data, cache_path)
+        
+        return data
     except requests.exceptions.RequestException as e:
         print(f"Error fetching bootstrap data: {e}")
         return None
@@ -57,12 +135,12 @@ def generate_gameweek_summary(league_id, gameweek=1):
     """Generate a comprehensive gameweek summary for WhatsApp"""
     
     print("🔄 Fetching league data...")
-    league_data = get_fpl_league_data(league_id)
+    league_data = get_fpl_league_data(league_id, gameweek)
     if not league_data:
         return "❌ Could not fetch league data"
     
     print("🔄 Fetching player database...")
-    bootstrap_data = get_bootstrap_data()
+    bootstrap_data = get_bootstrap_data(gameweek)
     if not bootstrap_data:
         return "❌ Could not fetch player data"
     
@@ -72,10 +150,10 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Sort by rank
     standings.sort(key=lambda x: x['rank'])
     
-    summary = f"🏆 **{league_name}** - Gameweek {gameweek} Summary\n\n"
+    summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
     
     # Top 3
-    summary += "🏆 **TOP 3** 🏆\n"
+    summary += "🏆 *TOP 3* 🏆\n"
     for i, manager in enumerate(standings[:3]):
         medals = ["🥇", "🥈", "🥉"]
         summary += f"{medals[i]} {manager['player_name']} ({manager['entry_name']}) - {manager['event_total']} pts\n"
@@ -83,7 +161,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary += "\n"
     
     # Full standings
-    summary += "📊 **FULL TABLE**\n"
+    summary += "📊 *FULL TABLE*\n"
     for manager in standings:
         summary += f"{manager['rank']}. {manager['player_name']} - {manager['event_total']} pts\n"
     
@@ -93,10 +171,10 @@ def generate_gameweek_summary(league_id, gameweek=1):
     highest_score = max(standings, key=lambda x: x['event_total'])
     lowest_score = min(standings, key=lambda x: x['event_total'])
     
-    summary += "📈 **GAMEWEEK STATS**\n"
+    summary += "📈 *GAMEWEEK STATS*\n"
     summary += f"🎯 Highest Score: {highest_score['player_name']} ({highest_score['event_total']} pts)\n"
-    summary += f"😬 Lowest Score: {lowest_score['player_name']} ({lowest_score['event_total']} pts)\n"
-    summary += f"📊 Average: {sum(m['event_total'] for m in standings) / len(standings):.1f} pts\n"
+    summary += f"🥄 Lowest Score: {lowest_score['player_name']} ({lowest_score['event_total']} pts)\n"
+    summary += f"⚖️ Average: {sum(m['event_total'] for m in standings) / len(standings):.1f} pts\n"
     
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
@@ -124,7 +202,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     
     # Captain analysis
     if captain_info:
-        summary += "\n⚡ **CAPTAIN CHOICES**\n"
+        summary += "\n⚡ *CAPTAIN CHOICES*\n"
         captain_info.sort(key=lambda x: x['points'], reverse=True)
         
         for cap in captain_info:
@@ -142,13 +220,13 @@ def generate_gameweek_summary(league_id, gameweek=1):
     detailed_stats = analyze_detailed_stats(standings, gameweek, bootstrap_data)
     
     # Bench points
-    summary += "\n🪑 **BENCH WARMERS**\n"
+    summary += "\n🪑 *BENCH WARMERS*\n"
     if detailed_stats['bench_stats']:
         bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
         summary += f"💺 Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
     
     # Best by position
-    summary += "\n⚽ **POSITIONAL KINGS**\n"
+    summary += "\n⚽ *POSITIONAL KINGS*\n"
     if detailed_stats['position_leaders']:
         pos_emojis = {'defence': '🛡️', 'midfield': '⚡', 'attack': '🎯'}
         for pos, leader in detailed_stats['position_leaders'].items():
@@ -158,10 +236,8 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Transfer analysis (for future weeks)
     if gameweek > 1 and detailed_stats['best_transfer']:
         transfer = detailed_stats['best_transfer']
-        summary += f"\n💰 **TRANSFER MASTERCLASS**\n"
+        summary += f"\n💰 *TRANSFER MASTERCLASS*\n"
         summary += f"🔄 Best New Signing: {transfer['player']} ({transfer['points']} pts) - {transfer['manager']}\n"
-    
-    summary += f"\n🤖 Next gameweek predictions coming soon! 📈"
     
     return summary
 
