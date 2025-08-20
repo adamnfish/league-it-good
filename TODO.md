@@ -3,12 +3,13 @@
 ## Phase 1: Configuration & Cleanup
 
 ### Configuration Tasks
-- [ ] **Parameterize league ID** - Remove hardcoded league ID (892307) and accept as CLI argument
-- [ ] **Parameterize gameweek** - Remove hardcoded gameweek and accept as CLI argument  
-- [ ] **Move cache directory** - Move cache from `fpl_cache/` to persistent location outside repo (e.g., `~/.fpl-tools/cache/`)
+- [x] **Parameterize league ID** - Remove hardcoded league ID and accept as CLI argument
+- [x] **Parameterize gameweek** - Remove hardcoded gameweek and accept as CLI argument  
+- [x] **Move cache directory** - Move cache from `fpl_cache/` to persistent location outside repo (`~/.fpl-tools/cache/`)
+- [x] **Move output directory** - Move output files to persistent location (`~/.fpl-tools/summaries/`)
 
 ### UI/UX Improvements  
-- [ ] **Reduce emoji usage** - Tone down emoji usage in output formatting while keeping it readable and fun
+- [x] **Reduce emoji usage** - Tone down emoji usage in output formatting while keeping it readable and fun
 
 ## Phase 2: Enhanced Features (for Gameweek 2+)
 
