@@ -330,7 +330,10 @@ if __name__ == "__main__":
     print("="*50)
     print(summary)
     
+    # Create directory if it doesn't exist
+    os.makedirs("gw-summaries", exist_ok=True)
+    
     # Save to file
-    with open(f"gw{gameweek}_summary.txt", "w", encoding="utf-8") as f:
+    with open(f"gw-summaries/gw{gameweek}_summary.txt", "w", encoding="utf-8") as f:
         f.write(summary)
-    print(f"\n💾 Summary saved to 'gw{gameweek}_summary.txt'")
+    print(f"\n💾 Summary saved to 'gw-summaries/gw{gameweek}_summary.txt'")
