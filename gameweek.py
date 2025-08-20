@@ -159,7 +159,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
     
     # Top 3
-    summary += "🏆 *TOP 3*\n"
+    summary += "🏆 *WEEK AS I AM*\n"
     for i, manager in enumerate(standings[:3]):
         medals = ["🥇", "🥈", "🥉"]
         summary += f"{medals[i]} {manager['player_name']} ({manager['entry_name']}) - {manager['event_total']} pts\n"
@@ -167,7 +167,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary += "\n"
     
     # Full standings
-    summary += "📊 *FULL TABLE*\n"
+    summary += "📊 *LEAGUE IT GOOD*\n"
     for manager in standings:
         summary += f"{manager['rank']}. {manager['player_name']} - {manager['event_total']} pts\n"
     
@@ -208,7 +208,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     
     # Captain analysis
     if captain_info:
-        summary += "\n👑 *CAPTAIN CHOICES*\n"
+        summary += "\n👑 *CAPTAINS LOG*\n"
         captain_info.sort(key=lambda x: x['points'], reverse=True)
         
         for cap in captain_info:
@@ -226,13 +226,13 @@ def generate_gameweek_summary(league_id, gameweek=1):
     detailed_stats = analyze_detailed_stats(standings, gameweek, bootstrap_data)
     
     # Bench points
-    summary += "\n🪑 *BENCH WARMERS*\n"
+    summary += "\n🪑 *BENCH PRESS*\n"
     if detailed_stats['bench_stats']:
         bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
         summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
     
     # Best by position
-    summary += "\n⚽ *POSITIONAL KINGS*\n"
+    summary += "\n⚽ *DOING ZONE GOOD*\n"
     if detailed_stats['position_leaders']:
         for pos, leader in detailed_stats['position_leaders'].items():
             summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
