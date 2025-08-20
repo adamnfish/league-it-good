@@ -159,7 +159,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
     
     # Top 3
-    summary += "🏆 *TOP 3* 🏆\n"
+    summary += "🏆 *TOP 3*\n"
     for i, manager in enumerate(standings[:3]):
         medals = ["🥇", "🥈", "🥉"]
         summary += f"{medals[i]} {manager['player_name']} ({manager['entry_name']}) - {manager['event_total']} pts\n"
@@ -178,9 +178,9 @@ def generate_gameweek_summary(league_id, gameweek=1):
     lowest_score = min(standings, key=lambda x: x['event_total'])
     
     summary += "📈 *GAMEWEEK STATS*\n"
-    summary += f"🎯 Highest Score: {highest_score['player_name']} ({highest_score['event_total']} pts)\n"
-    summary += f"🥄 Lowest Score: {lowest_score['player_name']} ({lowest_score['event_total']} pts)\n"
-    summary += f"⚖️ Average: {sum(m['event_total'] for m in standings) / len(standings):.1f} pts\n"
+    summary += f"Highest Score: {highest_score['player_name']} ({highest_score['event_total']} pts)\n"
+    summary += f"Lowest Score: {lowest_score['player_name']} ({lowest_score['event_total']} pts)\n"
+    summary += f"Average: {sum(m['event_total'] for m in standings) / len(standings):.1f} pts\n"
     
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
@@ -208,18 +208,18 @@ def generate_gameweek_summary(league_id, gameweek=1):
     
     # Captain analysis
     if captain_info:
-        summary += "\n⚡ *CAPTAIN CHOICES*\n"
+        summary += "\n👑 *CAPTAIN CHOICES*\n"
         captain_info.sort(key=lambda x: x['points'], reverse=True)
         
         for cap in captain_info:
-            summary += f"👑 {cap['manager']}: {cap['captain']} ({cap['base_points']} x2 = {cap['points']} pts)\n"
+            summary += f"{cap['manager']}: {cap['captain']} ({cap['base_points']} x2 = {cap['points']} pts)\n"
         
         # Most popular captain
         from collections import Counter
         captain_counts = Counter([cap['captain'] for cap in captain_info])
         most_popular = captain_counts.most_common(1)[0]
         
-        summary += f"\n📊 Most Popular Captain: {most_popular[0]} ({most_popular[1]} managers)\n"
+        summary += f"\nMost Popular Captain: {most_popular[0]} ({most_popular[1]} managers)\n"
     
     # Get detailed data for fun categories
     print("🔄 Analyzing bench points and position stats...")
@@ -229,21 +229,19 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary += "\n🪑 *BENCH WARMERS*\n"
     if detailed_stats['bench_stats']:
         bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
-        summary += f"💺 Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
+        summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
     
     # Best by position
     summary += "\n⚽ *POSITIONAL KINGS*\n"
     if detailed_stats['position_leaders']:
-        pos_emojis = {'defence': '🛡️', 'midfield': '⚡', 'attack': '🎯'}
         for pos, leader in detailed_stats['position_leaders'].items():
-            emoji = pos_emojis.get(pos, '⭐')
-            summary += f"{emoji} Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
+            summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
     
     # Transfer analysis (for future weeks)
     if gameweek > 1 and detailed_stats['best_transfer']:
         transfer = detailed_stats['best_transfer']
         summary += f"\n💰 *TRANSFER MASTERCLASS*\n"
-        summary += f"🔄 Best New Signing: {transfer['player']} ({transfer['points']} pts) - {transfer['manager']}\n"
+        summary += f"Best New Signing: {transfer['player']} ({transfer['points']} pts) - {transfer['manager']}\n"
     
     return summary
 
