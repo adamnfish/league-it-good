@@ -75,7 +75,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary = f"🏆 **{league_name}** - Gameweek {gameweek} Summary\n\n"
     
     # Top 3
-    summary += "🥇🥈🥉 **TOP 3** 🥉🥈🥇\n"
+    summary += "🏆 **TOP 3** 🏆\n"
     for i, manager in enumerate(standings[:3]):
         medals = ["🥇", "🥈", "🥉"]
         summary += f"{medals[i]} {manager['player_name']} ({manager['entry_name']}) - {manager['event_total']} pts\n"
@@ -85,8 +85,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Full standings
     summary += "📊 **FULL TABLE**\n"
     for manager in standings:
-        rank_emoji = "🔺" if manager['rank'] <= 3 else "🔻" if manager['rank'] >= len(standings) - 2 else "➖"
-        summary += f"{manager['rank']}. {rank_emoji} {manager['player_name']} - {manager['event_total']} pts\n"
+        summary += f"{manager['rank']}. {manager['player_name']} - {manager['event_total']} pts\n"
     
     summary += "\n"
     
@@ -138,10 +137,110 @@ def generate_gameweek_summary(league_id, gameweek=1):
         
         summary += f"\n📊 Most Popular Captain: {most_popular[0]} ({most_popular[1]} managers)\n"
     
-    summary += f"\n🗓️ Generated: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+    # Get detailed data for fun categories
+    print("🔄 Analyzing bench points and position stats...")
+    detailed_stats = analyze_detailed_stats(standings, gameweek, bootstrap_data)
+    
+    # Bench points
+    summary += "\n🪑 **BENCH WARMERS**\n"
+    if detailed_stats['bench_stats']:
+        bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
+        summary += f"💺 Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
+    
+    # Best by position
+    summary += "\n⚽ **POSITIONAL KINGS**\n"
+    if detailed_stats['position_leaders']:
+        pos_emojis = {'defence': '🛡️', 'midfield': '⚡', 'attack': '🎯'}
+        for pos, leader in detailed_stats['position_leaders'].items():
+            emoji = pos_emojis.get(pos, '⭐')
+            summary += f"{emoji} Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
+    
+    # Transfer analysis (for future weeks)
+    if gameweek > 1 and detailed_stats['best_transfer']:
+        transfer = detailed_stats['best_transfer']
+        summary += f"\n💰 **TRANSFER MASTERCLASS**\n"
+        summary += f"🔄 Best New Signing: {transfer['player']} ({transfer['points']} pts) - {transfer['manager']}\n"
+    
     summary += f"\n🤖 Next gameweek predictions coming soon! 📈"
     
     return summary
+
+def analyze_detailed_stats(standings, gameweek, bootstrap_data):
+    """Analyze bench points, positional performance, and transfers"""
+    bench_stats = []
+    position_stats = {'defence': [], 'midfield': [], 'attack': []}
+    transfer_stats = []
+    
+    for manager in standings:
+        manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
+        if not manager_data:
+            continue
+            
+        # Calculate bench points
+        bench_points = 0
+        playing_squad = []
+        
+        for pick in manager_data['picks']:
+            player_data = get_player_data(pick['element'], bootstrap_data)
+            if not player_data:
+                continue
+                
+            player_points = player_data['event_points']
+            
+            # Check if player is on bench (multiplier = 0 or position > 11)
+            if pick['multiplier'] == 0:
+                bench_points += player_points
+            else:
+                playing_squad.append({
+                    'player_data': player_data,
+                    'points': player_points * pick['multiplier'],
+                    'position_type': get_position_type(player_data['element_type'])
+                })
+        
+        bench_stats.append({
+            'manager': manager['player_name'],
+            'bench_points': bench_points
+        })
+        
+        # Calculate positional points
+        pos_points = {'defence': 0, 'midfield': 0, 'attack': 0}
+        for player in playing_squad:
+            pos_type = player['position_type']
+            if pos_type in pos_points:
+                pos_points[pos_type] += player['points']
+        
+        for pos, points in pos_points.items():
+            position_stats[pos].append({
+                'manager': manager['player_name'],
+                'points': points
+            })
+        
+        # Transfer analysis (for future implementation)
+        # This would require comparing with previous gameweek data
+    
+    # Find position leaders
+    position_leaders = {}
+    for pos, stats in position_stats.items():
+        if stats:
+            leader = max(stats, key=lambda x: x['points'])
+            position_leaders[pos] = leader
+    
+    return {
+        'bench_stats': bench_stats,
+        'position_leaders': position_leaders,
+        'best_transfer': None  # Will implement for future gameweeks
+    }
+
+def get_position_type(element_type):
+    """Map FPL position types to our categories"""
+    # 1=GK, 2=DEF, 3=MID, 4=FWD
+    position_map = {
+        1: 'defence',  # Goalkeeper counts as defence
+        2: 'defence',
+        3: 'midfield', 
+        4: 'attack'
+    }
+    return position_map.get(element_type, 'unknown')
 
 # Main execution
 if __name__ == "__main__":
