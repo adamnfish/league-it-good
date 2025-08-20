@@ -4,10 +4,14 @@ import os
 from datetime import datetime
 import click
 
+def get_fpl_tools_dir():
+    """Get the base .fpl-tools directory path"""
+    home_dir = os.path.expanduser("~")
+    return os.path.join(home_dir, ".fpl-tools")
+
 def get_cache_path(gameweek, cache_type, league_id=None, manager_id=None):
     """Generate cache file path"""
-    home_dir = os.path.expanduser("~")
-    cache_dir = os.path.join(home_dir, ".fpl-tools", "cache", f"gw{gameweek}")
+    cache_dir = os.path.join(get_fpl_tools_dir(), "cache", f"gw{gameweek}")
     os.makedirs(cache_dir, exist_ok=True)
     
     if cache_type == "bootstrap":
@@ -333,13 +337,15 @@ def main(league_id, gameweek):
     print("="*50)
     print(summary)
     
-    # Create directory if it doesn't exist
-    os.makedirs("gw-summaries", exist_ok=True)
+    # Create output directory in .fpl-tools
+    output_dir = os.path.join(get_fpl_tools_dir(), "summaries")
+    os.makedirs(output_dir, exist_ok=True)
     
     # Save to file
-    with open(f"gw-summaries/gw{gameweek}_summary.txt", "w", encoding="utf-8") as f:
+    output_file = os.path.join(output_dir, f"gw{gameweek}_summary.txt")
+    with open(output_file, "w", encoding="utf-8") as f:
         f.write(summary)
-    print(f"\n💾 Summary saved to 'gw-summaries/gw{gameweek}_summary.txt'")
+    print(f"\n💾 Summary saved to '{output_file}'")
 
 if __name__ == "__main__":
     main()
