@@ -2,18 +2,20 @@ import requests
 import json
 import os
 from datetime import datetime
+import click
 
 def get_cache_path(gameweek, cache_type, league_id=None, manager_id=None):
     """Generate cache file path"""
-    cache_dir = f"fpl_cache/gw{gameweek}"
+    home_dir = os.path.expanduser("~")
+    cache_dir = os.path.join(home_dir, ".fpl-tools", "cache", f"gw{gameweek}")
     os.makedirs(cache_dir, exist_ok=True)
     
     if cache_type == "bootstrap":
-        return f"{cache_dir}/bootstrap.json"
+        return os.path.join(cache_dir, "bootstrap.json")
     elif cache_type == "league":
-        return f"{cache_dir}/league_{league_id}.json"
+        return os.path.join(cache_dir, f"league_{league_id}.json")
     elif cache_type == "manager":
-        return f"{cache_dir}/manager_{manager_id}.json"
+        return os.path.join(cache_dir, f"manager_{manager_id}.json")
     
 def load_from_cache(cache_path):
     """Load data from cache if it exists"""
@@ -318,10 +320,11 @@ def get_position_type(element_type):
     }
     return position_map.get(element_type, 'unknown')
 
-# Main execution
-if __name__ == "__main__":
-    league_id = 892307
-    gameweek = 1
+@click.command()
+@click.option('--league-id', '-l', required=True, type=int, help='FPL league ID')
+@click.option('--gameweek', '-g', required=True, type=int, help='Gameweek number')
+def main(league_id, gameweek):
+    """Generate FPL gameweek summary for a specific league and gameweek."""
     
     print("🚀 Generating FPL Gameweek Summary...")
     summary = generate_gameweek_summary(league_id, gameweek)
@@ -337,3 +340,6 @@ if __name__ == "__main__":
     with open(f"gw-summaries/gw{gameweek}_summary.txt", "w", encoding="utf-8") as f:
         f.write(summary)
     print(f"\n💾 Summary saved to 'gw-summaries/gw{gameweek}_summary.txt'")
+
+if __name__ == "__main__":
+    main()

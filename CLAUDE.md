@@ -36,6 +36,19 @@ FPL Tools is a Python application that generates Fantasy Premier League gameweek
 - Keep functions focused and well-documented
 - Use descriptive variable names
 
+### Development Workflow
+- **Implement one feature at a time** - Complete each todo item individually to allow for incremental commits
+- Stop after completing each task to allow the user to review and commit changes
+- This ensures a clean git history and makes it easier to track progress and revert if needed
+
+### Testing & Verification
+- **Ask for league ID at start** - Request the user to provide their league ID at the beginning of each session for testing
+- **Test after each change** - Run the script with test parameters to verify functionality still works
+- Check CLI interface with `--help` flag
+- Verify cache files are created in the correct location (`~/.fpl-tools/cache/`)
+- Confirm output files are generated correctly in `gw-summaries/`
+- Test with the provided league ID and gameweek 1 for consistency
+
 ### Testing
 - No formal test framework currently implemented
 - Manual testing by running against real FPL data
