@@ -10,6 +10,8 @@
 
 ### UI/UX Improvements  
 - [x] **Reduce emoji usage** - Tone down emoji usage in output formatting while keeping it readable and fun
+- [x] **Update section headings** - Make section headings more fun and punny
+- [x] **Improve captain display** - Group by captain choice instead of manager, remove redundant doubling calculation, handle vice captain edge cases
 
 ## Phase 2: Enhanced Features (for Gameweek 2+)
 
