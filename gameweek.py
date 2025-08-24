@@ -95,6 +95,16 @@ def get_manager_gameweek_data(manager_id, gameweek):
         print(f"Error fetching manager data: {e}")
         return None
 
+def load_previous_gameweek_data(manager_id, gameweek):
+    """Load previous gameweek data from cache only (never fetch from API)"""
+    if gameweek <= 1:
+        return None
+    
+    previous_gameweek = gameweek - 1
+    cache_path = get_cache_path(previous_gameweek, "manager", manager_id=manager_id)
+    
+    return load_from_cache(cache_path)
+
 def get_bootstrap_data(gameweek=None):
     """Get general FPL data including player names with caching"""
     cache_path = get_cache_path(gameweek, "bootstrap") if gameweek else None
@@ -259,19 +269,108 @@ def generate_gameweek_summary(league_id, gameweek=1):
         for pos, leader in detailed_stats['position_leaders'].items():
             summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
     
-    # Transfer analysis (for future weeks)
-    if gameweek > 1 and detailed_stats['best_transfer']:
-        transfer = detailed_stats['best_transfer']
-        summary += f"\n💰 *TRANSFER MASTERCLASS*\n"
-        summary += f"Best New Signing: {transfer['player']} ({transfer['points']} pts) - {transfer['manager']}\n"
+    # Transfer analysis (for gameweeks > 1)
+    if gameweek > 1 and detailed_stats['transfer_stats']:
+        summary += "\n💸 *WHEELER DEALER*\n"
+        
+        # Show transfer activity
+        active_managers = [t for t in detailed_stats['transfer_stats'] if t['transfers_made'] > 0]
+        if active_managers:
+            # Best and worst transfer performance first
+            if detailed_stats['best_transfer']:
+                best = detailed_stats['best_transfer']
+                summary += f"Best Transfers: {best['manager']} ({best['new_player_points']} pts from new signings)\n"
+            
+            if detailed_stats['worst_transfer'] and detailed_stats['worst_transfer'] != detailed_stats['best_transfer']:
+                worst = detailed_stats['worst_transfer']
+                net_return = worst['new_player_points'] - worst['net_cost']
+                summary += f"Worst Transfers: {worst['manager']} ({net_return:+} pts net return)\n"
+            
+            # Group managers by number of transfers
+            transfer_groups = {}
+            for manager_transfer in active_managers:
+                transfers = manager_transfer['transfers_made']
+                if transfers not in transfer_groups:
+                    transfer_groups[transfers] = []
+                
+                # Format manager name with cost if applicable
+                cost_str = f" (-{manager_transfer['transfer_cost']} pts)" if manager_transfer['transfer_cost'] > 0 else ""
+                manager_display = f"_{manager_transfer['manager']}{cost_str}_"
+                transfer_groups[transfers].append(manager_display)
+            
+            # Display grouped transfers (sorted by number of transfers, descending)
+            summary += "\n"
+            for transfer_count in sorted(transfer_groups.keys(), reverse=True):
+                managers_str = ", ".join(transfer_groups[transfer_count])
+                plural = "transfers" if transfer_count > 1 else "transfer"
+                summary += f"{transfer_count} {plural}:\n  {managers_str}\n"
     
     return summary
+
+def analyze_transfer_stats(standings, gameweek, bootstrap_data):
+    """Analyze transfer activity and performance"""
+    if gameweek <= 1:
+        return None
+        
+    transfer_stats = []
+    
+    for manager in standings:
+        current_data = get_manager_gameweek_data(manager['entry'], gameweek)
+        previous_data = load_previous_gameweek_data(manager['entry'], gameweek)
+        
+        if not current_data or not previous_data:
+            continue
+            
+        # Get transfer info
+        transfers_made = current_data['entry_history']['event_transfers']
+        transfer_cost = current_data['entry_history']['event_transfers_cost']
+        
+        # Skip if no transfers or used wildcard/free hit (unlimited transfers)
+        active_chip = current_data.get('active_chip')
+        if transfers_made == 0 or active_chip in ['wildcard', 'freehit']:
+            continue
+            
+        # Find new players by comparing picks
+        current_players = {pick['element'] for pick in current_data['picks']}
+        previous_players = {pick['element'] for pick in previous_data['picks']}
+        
+        new_players = current_players - previous_players
+        removed_players = previous_players - current_players
+        
+        # Calculate points scored by new players
+        new_player_points = 0
+        new_player_details = []
+        
+        for player_id in new_players:
+            player_data = get_player_data(player_id, bootstrap_data)
+            if player_data:
+                points = player_data['event_points']
+                # Check if player was in starting XI (not bench)
+                for pick in current_data['picks']:
+                    if pick['element'] == player_id and pick['multiplier'] > 0:
+                        new_player_points += points * pick['multiplier']
+                        new_player_details.append({
+                            'name': get_player_name(player_id, bootstrap_data),
+                            'points': points,
+                            'multiplier': pick['multiplier']
+                        })
+                        break
+        
+        transfer_stats.append({
+            'manager': manager['player_name'],
+            'transfers_made': transfers_made,
+            'transfer_cost': transfer_cost,
+            'new_player_points': new_player_points,
+            'new_player_details': new_player_details,
+            'net_cost': transfer_cost,  # Points deducted for transfers
+        })
+    
+    return transfer_stats
 
 def analyze_detailed_stats(standings, gameweek, bootstrap_data):
     """Analyze bench points, positional performance, and transfers"""
     bench_stats = []
     position_stats = {'defence': [], 'midfield': [], 'attack': []}
-    transfer_stats = []
     
     for manager in standings:
         manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
@@ -316,9 +415,6 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
                 'manager': manager['player_name'],
                 'points': points
             })
-        
-        # Transfer analysis (for future implementation)
-        # This would require comparing with previous gameweek data
     
     # Find position leaders
     position_leaders = {}
@@ -327,10 +423,23 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
             leader = max(stats, key=lambda x: x['points'])
             position_leaders[pos] = leader
     
+    # Get transfer analysis
+    transfer_stats = analyze_transfer_stats(standings, gameweek, bootstrap_data)
+    best_transfer = None
+    worst_transfer = None
+    
+    if transfer_stats:
+        # Find best performing transfers (highest points from new players)
+        best_transfer = max(transfer_stats, key=lambda x: x['new_player_points'])
+        # Find worst performing transfers (lowest points relative to cost)
+        worst_transfer = min(transfer_stats, key=lambda x: x['new_player_points'] - x['net_cost'])
+    
     return {
         'bench_stats': bench_stats,
         'position_leaders': position_leaders,
-        'best_transfer': None  # Will implement for future gameweeks
+        'transfer_stats': transfer_stats,
+        'best_transfer': best_transfer,
+        'worst_transfer': worst_transfer
     }
 
 def get_position_type(element_type):
