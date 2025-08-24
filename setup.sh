@@ -9,10 +9,10 @@ python -m venv .venv
 echo "⚡ Activating virtual environment..."
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
     # Windows
-    source .env/Scripts/activate
+    source .venv/Scripts/activate
 else
     # Linux/Mac
-    source .env/bin/activate
+    source .venv/bin/activate
 fi
 
 echo "📥 Installing requirements..."
@@ -23,9 +23,9 @@ echo ""
 echo "To run the FPL summary generator:"
 echo "1. Activate the virtual environment:"
 if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-    echo "   source .env/Scripts/activate"
+    echo "   source .venv/Scripts/activate"
 else
-    echo "   source .env/bin/activate"
+    echo "   source .venv/bin/activate"
 fi
 echo "2. Run the script:"
 echo "   python gameweek.py"
