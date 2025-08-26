@@ -252,13 +252,11 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
     captain_choices = {}
-    special_cases = []
     
     for manager in standings:
         manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
         if manager_data:
             captain_found = False
-            vice_used = False
             
             for pick in manager_data['picks']:
                 player_name = get_player_name(pick['element'], bootstrap_data)
@@ -273,23 +271,20 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 if pick['multiplier'] == 2:
                     captain_found = True
                     
-                    # Check if this was originally the vice captain (vice stepped up)
-                    if pick['is_vice_captain']:
-                        vice_used = True
-                        special_cases.append(f"{manager['player_name']}: Vice captain {player_name} stepped up")
-                    
                     # Group by captain choice
                     if player_name not in captain_choices:
                         captain_choices[player_name] = {
                             'points': player_points,
                             'managers': []
                         }
-                    captain_choices[player_name]['managers'].append(manager['player_name'])
+                    
+                    # Add manager with vice captain indicator if applicable
+                    manager_display = manager['player_name']
+                    if pick['is_vice_captain']:
+                        manager_display += " (v)"
+                    
+                    captain_choices[player_name]['managers'].append(manager_display)
                     break
-            
-            # Handle edge case: neither captain nor vice played
-            if not captain_found:
-                special_cases.append(f"{manager['player_name']}: Neither captain nor vice captain played!")
     
     # Captain analysis
     if captain_choices:
@@ -303,12 +298,6 @@ def generate_gameweek_summary(league_id, gameweek=1):
         for captain_name, data in sorted_captains:
             managers_str = ", ".join([f"_{manager}_" for manager in data['managers']])
             summary += f"{captain_name} ({data['points']} pts):\n  {managers_str}\n"
-        
-        # Add special cases if any
-        if special_cases:
-            summary += "\n"
-            for case in special_cases:
-                summary += f"⚠️ {case}\n"
     
     # Get detailed data for fun categories
     print("🔄 Analyzing bench points and position stats...")
