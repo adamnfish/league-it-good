@@ -230,24 +230,23 @@ def generate_gameweek_summary(league_id, gameweek=1):
         if change is None:
             change_str = ""  # New manager or GW1
         elif change > 0:
-            change_str = f" (↑{change})" if change > 1 else " (↑1)"
+            change_str = f"(↑{change}) " if change > 1 else "(↑1) "
         elif change < 0:
-            change_str = f" (↓{abs(change)})" if abs(change) > 1 else " (↓1)"
+            change_str = f"(↓{abs(change)}) " if abs(change) > 1 else "(↓1) "
         else:
-            change_str = " (=)"
+            change_str = "(=) "
         
-        # Format gameweek points with highlighting
-        gw_points = manager['event_total']
+        # Format awards for team name line
+        awards = ""
         if manager['entry'] == highest_score['entry']:
-            gw_points_str = f"**{gw_points} gw pts** ⭐"
+            awards = " ⭐"
         elif manager['entry'] == lowest_score['entry']:
-            gw_points_str = f"{gw_points} gw pts 💩"
-        else:
-            gw_points_str = f"{gw_points} gw pts"
+            awards = " 💩"
         
-        # Two-line format
-        summary += f"{manager['rank']}. {manager['player_name']}{change_str} - {manager['total']} pts\n"
-        summary += f"   {manager['entry_name']} - {gw_points_str}\n"
+        # Two-line format with unified points display
+        gw_points = manager['event_total']
+        summary += f"{manager['rank']}. {change_str}{manager['player_name']} - {manager['total']} pts (+{gw_points})\n"
+        summary += f"      {manager['entry_name']}{awards}\n"
         
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
