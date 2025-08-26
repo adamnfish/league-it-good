@@ -16,15 +16,25 @@
 ## Phase 2: Enhanced Features (for Gameweek 2+)
 
 ### Transfer Analysis
-- [ ] **Most successful transfer** - Find highest scoring player that was just transferred in by any manager
-- [ ] **Worst captain choice** - Highlight the captain selection that scored the lowest points
+- [x] **Transfer tracking** - Compare current gameweek picks with previous gameweek to identify new signings
+- [x] **Transfer activity display** - Show number of transfers, costs, and group managers by transfer count
+- [x] **Best/worst transfers** - Highlight managers with best and worst performing transfer decisions
 
-### Unique Player Analysis  
+### League Display Enhancements
+- [x] **League position changes** - Add up/down arrows showing position movement from previous gameweek
+- [x] **Enhanced league table** - Two-line format with team names, position changes, total points, and gameweek highlights
+- [x] **Improved gameweek summary** - Show gameweek winner, wooden spoon, and league average instead of duplicating league table
+- [x] **Inline vice captain display** - Show "(v)" when vice captain stepped up in captain analysis
+
+### Captain Analysis
+- [x] **Captain performance tracking** - Show captain choices grouped by player with points scored
+- [x] **Vice captain integration** - Handle edge cases where vice captain steps up
+
+### Technical Improvements
+- [x] **League-specific output files** - Parameterize filenames with league ID to prevent overwriting
+
+### Still To Do
 - [ ] **Best differential** - Show highest scoring player that was only owned by one manager (unique picks)
-
-### Historical Comparison
-- [ ] **League position changes** - Add up/down arrows showing position movement from previous gameweek
-- [ ] **Transfer tracking** - Compare current gameweek picks with previous gameweek to identify new signings
 
 ## Implementation Notes
 
