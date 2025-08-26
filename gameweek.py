@@ -214,11 +214,12 @@ def generate_gameweek_summary(league_id, gameweek=1):
     
     summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
     
-    # Top 3
+    # Gameweek highlights
+    average_score = sum(m['event_total'] for m in standings) / len(standings)
     summary += "🏆 *WEEK AS I AM*\n"
-    for i, manager in enumerate(standings[:3]):
-        medals = ["🥇", "🥈", "🥉"]
-        summary += f"{medals[i]} {manager['player_name']} ({manager['entry_name']}) - {manager['event_total']} pts\n"
+    summary += f"Week {gameweek} winner: {highest_score['player_name']} ({highest_score['entry_name']}) - {highest_score['event_total']} pts\n"
+    summary += f"Wooden spoon: {lowest_score['player_name']} ({lowest_score['entry_name']}) - {lowest_score['event_total']} pts\n"
+    summary += f"League average: {average_score:.1f} pts\n"
     
     summary += "\n"
     
