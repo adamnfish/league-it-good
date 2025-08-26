@@ -350,6 +350,21 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 managers_str = ", ".join(transfer_groups[transfer_count])
                 plural = "transfers" if transfer_count > 1 else "transfer"
                 summary += f"{transfer_count} {plural}:\n  {managers_str}\n"
+            
+            # Show managers who didn't make any transfers
+            no_transfer_managers = []
+            for manager in standings:
+                manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
+                if manager_data:
+                    transfers_made = manager_data['entry_history']['event_transfers']
+                    active_chip = manager_data.get('active_chip')
+                    # Include if no transfers and didn't use wildcard/free hit
+                    if transfers_made == 0 and active_chip not in ['wildcard', 'freehit']:
+                        no_transfer_managers.append(f"_{manager['player_name']}_")
+            
+            if no_transfer_managers:
+                managers_str = ", ".join(no_transfer_managers)
+                summary += f"If it ain't broke...\n  {managers_str}\n"
     
     return summary
 
