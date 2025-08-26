@@ -105,6 +105,44 @@ def load_previous_gameweek_data(manager_id, gameweek):
     
     return load_from_cache(cache_path)
 
+def get_previous_league_standings(league_id, gameweek):
+    """Get previous gameweek league standings from cache only"""
+    if gameweek <= 1:
+        return None
+    
+    previous_gameweek = gameweek - 1
+    cache_path = get_cache_path(previous_gameweek, "league", league_id=league_id)
+    
+    previous_data = load_from_cache(cache_path)
+    if previous_data:
+        return previous_data['standings']['results']
+    return None
+
+def calculate_position_changes(current_standings, previous_standings):
+    """Calculate position changes between gameweeks"""
+    if not previous_standings:
+        return {}
+    
+    # Create mapping of manager ID to previous position
+    previous_positions = {}
+    for manager in previous_standings:
+        previous_positions[manager['entry']] = manager['rank']
+    
+    # Calculate changes
+    position_changes = {}
+    for manager in current_standings:
+        manager_id = manager['entry']
+        current_pos = manager['rank']
+        previous_pos = previous_positions.get(manager_id)
+        
+        if previous_pos is not None:
+            change = previous_pos - current_pos  # Positive = moved up, Negative = moved down
+            position_changes[manager_id] = change
+        else:
+            position_changes[manager_id] = None  # New manager
+    
+    return position_changes
+
 def get_bootstrap_data(gameweek=None):
     """Get general FPL data including player names with caching"""
     cache_path = get_cache_path(gameweek, "bootstrap") if gameweek else None
@@ -166,6 +204,14 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Sort by rank
     standings.sort(key=lambda x: x['rank'])
     
+    # Get position changes from previous gameweek
+    previous_standings = get_previous_league_standings(league_id, gameweek)
+    position_changes = calculate_position_changes(standings, previous_standings)
+    
+    # Find highest and lowest scores for highlighting
+    highest_score = max(standings, key=lambda x: x['event_total'])
+    lowest_score = min(standings, key=lambda x: x['event_total'])
+    
     summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
     
     # Top 3
@@ -176,22 +222,33 @@ def generate_gameweek_summary(league_id, gameweek=1):
     
     summary += "\n"
     
-    # Full standings
+    # Enhanced league standings
     summary += "📊 *LEAGUE IT GOOD*\n"
     for manager in standings:
-        summary += f"{manager['rank']}. {manager['player_name']} - {manager['event_total']} pts\n"
-    
-    summary += "\n"
-    
-    # Stats
-    highest_score = max(standings, key=lambda x: x['event_total'])
-    lowest_score = min(standings, key=lambda x: x['event_total'])
-    
-    summary += "📈 *GAMEWEEK STATS*\n"
-    summary += f"Highest Score: {highest_score['player_name']} ({highest_score['event_total']} pts)\n"
-    summary += f"Lowest Score: {lowest_score['player_name']} ({lowest_score['event_total']} pts)\n"
-    summary += f"Average: {sum(m['event_total'] for m in standings) / len(standings):.1f} pts\n"
-    
+        # Format position change
+        change = position_changes.get(manager['entry'])
+        if change is None:
+            change_str = ""  # New manager or GW1
+        elif change > 0:
+            change_str = f" (↑{change})" if change > 1 else " (↑1)"
+        elif change < 0:
+            change_str = f" (↓{abs(change)})" if abs(change) > 1 else " (↓1)"
+        else:
+            change_str = " (=)"
+        
+        # Format gameweek points with highlighting
+        gw_points = manager['event_total']
+        if manager['entry'] == highest_score['entry']:
+            gw_points_str = f"**{gw_points} gw pts** ⭐"
+        elif manager['entry'] == lowest_score['entry']:
+            gw_points_str = f"{gw_points} gw pts 💩"
+        else:
+            gw_points_str = f"{gw_points} gw pts"
+        
+        # Two-line format
+        summary += f"{manager['rank']}. {manager['player_name']}{change_str} - {manager['total']} pts\n"
+        summary += f"   {manager['entry_name']} - {gw_points_str}\n"
+        
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
     captain_choices = {}
