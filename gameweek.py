@@ -517,7 +517,7 @@ def main(league_id, gameweek):
     os.makedirs(output_dir, exist_ok=True)
     
     # Save to file
-    output_file = os.path.join(output_dir, f"gw{gameweek}_summary.txt")
+    output_file = os.path.join(output_dir, f"league_{league_id}_gw{gameweek}_summary.txt")
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(summary)
     print(f"\n💾 Summary saved to '{output_file}'")
