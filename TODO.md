@@ -36,6 +36,11 @@
 ### Still To Do
 - [ ] **Best differential** - Show highest scoring player that was only owned by one manager (unique picks)
 
+## Phase 3: Code Quality & Polish
+
+### Technical Improvements
+- [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `--list-leagues` command
+
 ## Implementation Notes
 
 ### Phase 1 Requirements
