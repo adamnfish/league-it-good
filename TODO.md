@@ -7,6 +7,7 @@
 - [x] **Parameterize gameweek** - Remove hardcoded gameweek and accept as CLI argument  
 - [x] **Move cache directory** - Move cache from `fpl_cache/` to persistent location outside repo (`~/.fpl-tools/cache/`)
 - [x] **Move output directory** - Move output files to persistent location (`~/.fpl-tools/summaries/`)
+- [ ] **Rename data directories** - Update our data directories to use the new name `league-it-good` (instead of `fpl-tools`)
 
 ### UI/UX Improvements  
 - [x] **Reduce emoji usage** - Tone down emoji usage in output formatting while keeping it readable and fun

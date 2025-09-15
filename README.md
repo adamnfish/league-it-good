@@ -1,4 +1,4 @@
-# FPL Tools
+# League it Good
 
 A Python tool for generating comprehensive Fantasy Premier League gameweek summaries and statistics.
 
