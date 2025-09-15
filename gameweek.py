@@ -307,6 +307,10 @@ def generate_gameweek_summary(league_id, gameweek=1):
     print("🔄 Checking chip usage...")
     chip_usage = analyze_chip_usage(standings, gameweek)
     
+    # Get differential analysis
+    print("🔄 Analyzing differential picks...")
+    best_differential = analyze_best_differential(standings, gameweek, bootstrap_data)
+    
     # Bench points
     summary += "\n🪑 *BENCH PRESS*\n"
     if detailed_stats['bench_stats']:
@@ -336,6 +340,12 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 chip_name = chip_names.get(chip_key, chip_key.title())
                 managers_str = ", ".join([f"_{manager}_" for manager in managers])
                 summary += f"{chip_name}:\n  {managers_str}\n"
+    
+    # Best differential (only show if there's a clear standout with 6+ points)
+    if best_differential:
+        summary += "\n🎯 *HIGHCONOCLAST*\n"
+        summary += f"Best Differential: _{best_differential['manager']}_\n"
+        summary += f"  {best_differential['player_name']} ({best_differential['points']} pts)\n"
     
     # Transfer analysis (for gameweeks > 1)
     if gameweek > 1 and detailed_stats['transfer_stats']:
@@ -410,6 +420,50 @@ def analyze_chip_usage(standings, gameweek):
             chip_usage[active_chip].append(manager['player_name'])
     
     return chip_usage
+
+def analyze_best_differential(standings, gameweek, bootstrap_data):
+    """Find the highest scoring player owned by only one manager (6+ points, no ties)"""
+    player_ownership = {}  # player_id -> list of managers
+    
+    # Count ownership for each player
+    for manager in standings:
+        manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
+        if not manager_data:
+            continue
+            
+        for pick in manager_data['picks']:
+            player_id = pick['element']
+            if player_id not in player_ownership:
+                player_ownership[player_id] = []
+            player_ownership[player_id].append(manager['player_name'])
+    
+    # Find players owned by exactly one manager with 6+ points
+    unique_picks = {}  # player_id -> (manager_name, points)
+    for player_id, managers in player_ownership.items():
+        if len(managers) == 1:  # Only owned by one manager
+            player_data = get_player_data(player_id, bootstrap_data)
+            if player_data:
+                points = player_data['event_points']
+                if points >= 6:  # Must have at least 6 points
+                    unique_picks[player_id] = {
+                        'manager': managers[0],
+                        'points': points,
+                        'player_name': get_player_name(player_id, bootstrap_data)
+                    }
+    
+    # Find the highest scoring unique pick, but only if there's a clear winner
+    if not unique_picks:
+        return None
+        
+    # Check for ties at the highest score
+    max_points = max(pick['points'] for pick in unique_picks.values())
+    top_picks = [pick for pick in unique_picks.values() if pick['points'] == max_points]
+    
+    # Only return if there's a single standout winner
+    if len(top_picks) == 1:
+        return top_picks[0]
+    else:
+        return None  # Skip section if there's a tie
 
 def analyze_transfer_stats(standings, gameweek, bootstrap_data):
     """Analyze transfer activity and performance"""
