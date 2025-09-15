@@ -33,12 +33,14 @@
 ### Technical Improvements
 - [x] **League-specific output files** - Parameterize filenames with league ID to prevent overwriting
 
-### Still To Do
-- [ ] **Best differential** - Show highest scoring player that was only owned by one manager (unique picks)
+### Completed Features
+- [x] **Best differential** - Show highest scoring player that was only owned by one manager (unique picks)
+- [x] **Chip usage tracking** - Display chips used in gameweek (Wildcard, Free Hit, Bench Boost, Triple Captain)
 
 ## Phase 3: Code Quality & Polish
 
 ### Technical Improvements
+- [x] **User feedback** - Add logging to the summary generation to describe clarify why sections are skipped
 - [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `--list-leagues` command
 
 ## Implementation Notes
