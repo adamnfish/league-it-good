@@ -224,7 +224,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary += "\n"
     
     # Enhanced league standings
-    summary += "📊 *LEAGUE IT GOOD*\n"
+    summary += "📊 *STANDINGS FOUR NOW*\n"
     for manager in standings:
         # Format position change
         change = position_changes.get(manager['entry'])
@@ -340,12 +340,20 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 chip_name = chip_names.get(chip_key, chip_key.title())
                 managers_str = ", ".join([f"_{manager}_" for manager in managers])
                 summary += f"{chip_name}:\n  {managers_str}\n"
+    else:
+        print(click.style("ℹ️  No chips used this gameweek - skipping 'CHIP OFF THE OLD BLOCK' section", fg='yellow'))
     
     # Best differential (only show if there's a clear standout with 6+ points)
-    if best_differential:
+    if best_differential['result']:
         summary += "\n🎯 *HIGHCONOCLAST*\n"
-        summary += f"Best Differential: _{best_differential['manager']}_\n"
-        summary += f"  {best_differential['player_name']} ({best_differential['points']} pts)\n"
+        summary += f"Best Differential: _{best_differential['result']['manager']}_\n"
+        summary += f"  {best_differential['result']['player_name']} ({best_differential['result']['points']} pts)\n"
+    else:
+        if best_differential['reason'] == 'tie':
+            print(click.style(f"ℹ️  Tie for best differential ({best_differential['tied_count']} players with {best_differential['tied_points']} pts) - skipping 'HIGHCONOCLAST' section", fg='yellow'))
+        else:
+            print(click.style("ℹ️  No qualifying differential picks found - skipping 'HIGHCONOCLAST' section", fg='yellow'))
+            print(click.style("    (requires unique player with 6+ points, no ties)", fg='cyan', dim=True))
     
     # Transfer analysis (for gameweeks > 1)
     if gameweek > 1 and detailed_stats['transfer_stats']:
@@ -398,6 +406,10 @@ def generate_gameweek_summary(league_id, gameweek=1):
             if no_transfer_managers:
                 managers_str = ", ".join(no_transfer_managers)
                 summary += f"If it ain't broke...\n  {managers_str}\n"
+    elif gameweek <= 1:
+        print(click.style("ℹ️  Transfer analysis not available for gameweek 1 - skipping 'WHEELER DEALER' section", fg='yellow'))
+    elif not detailed_stats['transfer_stats']:
+        print(click.style("ℹ️  No transfer data available - skipping 'WHEELER DEALER' section", fg='yellow'))
     
     return summary
 
@@ -453,7 +465,7 @@ def analyze_best_differential(standings, gameweek, bootstrap_data):
     
     # Find the highest scoring unique pick, but only if there's a clear winner
     if not unique_picks:
-        return None
+        return {'result': None, 'reason': 'no_qualifying_picks'}
         
     # Check for ties at the highest score
     max_points = max(pick['points'] for pick in unique_picks.values())
@@ -461,9 +473,9 @@ def analyze_best_differential(standings, gameweek, bootstrap_data):
     
     # Only return if there's a single standout winner
     if len(top_picks) == 1:
-        return top_picks[0]
+        return {'result': top_picks[0], 'reason': None}
     else:
-        return None  # Skip section if there's a tie
+        return {'result': None, 'reason': 'tie', 'tied_count': len(top_picks), 'tied_points': max_points}
 
 def analyze_transfer_stats(standings, gameweek, bootstrap_data):
     """Analyze transfer activity and performance"""
