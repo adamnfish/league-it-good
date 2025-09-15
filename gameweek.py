@@ -330,7 +330,8 @@ def generate_gameweek_summary(league_id, gameweek=1):
             if detailed_stats['worst_transfer'] and detailed_stats['worst_transfer'] != detailed_stats['best_transfer']:
                 worst = detailed_stats['worst_transfer']
                 net_return = worst['new_player_points'] - worst['net_cost']
-                summary += f"Worst Transfers: {worst['manager']} ({net_return:+} pts net return)\n"
+                net_return_str = f"{net_return} pts" if net_return >= 0 else f"{net_return} pts"
+                summary += f"Worst Transfers: {worst['manager']} ({net_return_str} net return)\n"
             
             # Group managers by number of transfers
             transfer_groups = {}
@@ -523,8 +524,6 @@ def main(league_id, gameweek):
     print("🚀 Generating FPL Gameweek Summary...")
     summary = generate_gameweek_summary(league_id, gameweek)
     print("\n" + "="*50)
-    print("WHATSAPP READY SUMMARY:")
-    print("="*50)
     print(summary)
     
     # Create output directory in .fpl-tools
