@@ -303,6 +303,10 @@ def generate_gameweek_summary(league_id, gameweek=1):
     print("🔄 Analyzing bench points and position stats...")
     detailed_stats = analyze_detailed_stats(standings, gameweek, bootstrap_data)
     
+    # Get chip usage
+    print("🔄 Checking chip usage...")
+    chip_usage = analyze_chip_usage(standings, gameweek)
+    
     # Bench points
     summary += "\n🪑 *BENCH PRESS*\n"
     if detailed_stats['bench_stats']:
@@ -314,6 +318,24 @@ def generate_gameweek_summary(league_id, gameweek=1):
     if detailed_stats['position_leaders']:
         for pos, leader in detailed_stats['position_leaders'].items():
             summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
+    
+    # Chip usage (only show if any chips were used)
+    chips_used = any(managers for managers in chip_usage.values())
+    if chips_used:
+        summary += "\n🃏 *CHIP OFF THE OLD BLOCK*\n"
+        
+        chip_names = {
+            'wildcard': 'Wildcard',
+            'freehit': 'Free Hit', 
+            'bboost': 'Bench Boost',
+            '3xc': 'Triple Captain'
+        }
+        
+        for chip_key, managers in chip_usage.items():
+            if managers:
+                chip_name = chip_names.get(chip_key, chip_key.title())
+                managers_str = ", ".join([f"_{manager}_" for manager in managers])
+                summary += f"{chip_name}:\n  {managers_str}\n"
     
     # Transfer analysis (for gameweeks > 1)
     if gameweek > 1 and detailed_stats['transfer_stats']:
@@ -368,6 +390,26 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 summary += f"If it ain't broke...\n  {managers_str}\n"
     
     return summary
+
+def analyze_chip_usage(standings, gameweek):
+    """Analyze chip usage for the gameweek"""
+    chip_usage = {
+        'wildcard': [],
+        'freehit': [],
+        'bboost': [],  # Bench Boost
+        '3xc': []      # Triple Captain
+    }
+    
+    for manager in standings:
+        manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
+        if not manager_data:
+            continue
+            
+        active_chip = manager_data.get('active_chip')
+        if active_chip and active_chip in chip_usage:
+            chip_usage[active_chip].append(manager['player_name'])
+    
+    return chip_usage
 
 def analyze_transfer_stats(standings, gameweek, bootstrap_data):
     """Analyze transfer activity and performance"""
