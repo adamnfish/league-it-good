@@ -515,11 +515,130 @@ def get_position_type(element_type):
     }
     return position_map.get(element_type, 'unknown')
 
+def get_cached_league_data():
+    """Get detailed information about cached leagues and gameweeks"""
+    cache_base_dir = os.path.join(get_fpl_tools_dir(), "cache")
+    
+    if not os.path.exists(cache_base_dir):
+        return {}
+    
+    league_data = {}
+    
+    # Scan all gameweek directories for league cache files
+    for item in os.listdir(cache_base_dir):
+        gw_dir = os.path.join(cache_base_dir, item)
+        if os.path.isdir(gw_dir) and item.startswith('gw'):
+            try:
+                # Extract gameweek number
+                gw_num = int(item[2:])  # Remove "gw" prefix
+                
+                for cache_file in os.listdir(gw_dir):
+                    if cache_file.startswith('league_') and cache_file.endswith('.json'):
+                        # Extract league ID from filename like "league_12345.json"
+                        league_id = cache_file[7:-5]  # Remove "league_" prefix and ".json" suffix
+                        if league_id.isdigit():
+                            league_id = int(league_id)
+                            if league_id not in league_data:
+                                league_data[league_id] = {'gameweeks': set(), 'team_count': None, 'league_name': None}
+                            league_data[league_id]['gameweeks'].add(gw_num)
+                            
+                            # Get team count and league name from the most recent gameweek data
+                            if league_data[league_id]['team_count'] is None or league_data[league_id]['league_name'] is None:
+                                try:
+                                    cache_path = os.path.join(gw_dir, cache_file)
+                                    with open(cache_path, 'r') as f:
+                                        data = json.load(f)
+                                        if 'standings' in data and 'results' in data['standings']:
+                                            league_data[league_id]['team_count'] = len(data['standings']['results'])
+                                        if 'league' in data and 'name' in data['league']:
+                                            league_data[league_id]['league_name'] = data['league']['name']
+                                except (json.JSONDecodeError, KeyError):
+                                    pass
+            except (OSError, ValueError):
+                continue
+    
+    # Convert sets to sorted lists
+    for league_id in league_data:
+        league_data[league_id]['gameweeks'] = sorted(league_data[league_id]['gameweeks'])
+    
+    return league_data
+
+def display_league_admin_info():
+    """Display comprehensive admin information about cached leagues"""
+    league_data = get_cached_league_data()
+    
+    if not league_data:
+        print("No cached league data found")
+        return
+    
+    print("📊 Cached League Data")
+    print("=" * 80)
+    
+    # Find the maximum gameweek across all leagues to determine range
+    all_gameweeks = set()
+    for data in league_data.values():
+        all_gameweeks.update(data['gameweeks'])
+    
+    if not all_gameweeks:
+        print("No gameweek data found")
+        return
+    
+    max_gw = max(all_gameweeks)
+    min_gw = min(all_gameweeks)
+    
+    # Header
+    print(f"{'League ID':<10} {'League Name':<25} {'Teams':<6} Gameweeks Available")
+    print("-" * 80)
+    
+    for league_id in sorted(league_data.keys()):
+        data = league_data[league_id]
+        gameweeks = data['gameweeks']
+        team_count = data['team_count']
+        league_name = data['league_name'] or 'Unknown'
+        
+        # Truncate league name if too long
+        if len(league_name) > 23:
+            league_name = league_name[:20] + "..."
+        
+        if team_count is None:
+            team_count_str = '?'
+        elif team_count >= 50:
+            team_count_str = '50+'
+        else:
+            team_count_str = str(team_count)
+        
+        # Build gameweek display with missing weeks marked
+        gw_display = []
+        for gw in range(min_gw, max_gw + 1):
+            if gw in gameweeks:
+                gw_display.append(str(gw))
+            else:
+                # Create bold x with same width as the gameweek number
+                gw_str = str(gw)
+                x_padded = "x" * len(gw_str)
+                gw_display.append(click.style(x_padded, bold=True))
+        
+        gw_string = " ".join(gw_display)
+        print(f"{league_id:<10} {league_name:<25} {team_count_str:<6} {gw_string}")
+    
+    print(f"\nLegend: {click.style('x', bold=True)} = missing gameweek data")
+
 @click.command()
-@click.option('--league-id', '-l', required=True, type=int, help='FPL league ID')
-@click.option('--gameweek', '-g', required=True, type=int, help='Gameweek number')
-def main(league_id, gameweek):
+@click.option('--league-id', '-l', type=int, help='FPL league ID')
+@click.option('--gameweek', '-g', type=int, help='Gameweek number')
+@click.option('--list-leagues', is_flag=True, help='List all cached league IDs')
+def main(league_id, gameweek, list_leagues):
     """Generate FPL gameweek summary for a specific league and gameweek."""
+    
+    if list_leagues:
+        display_league_admin_info()
+        return
+    
+    # Validate required arguments for summary generation
+    if not league_id or not gameweek:
+        print("Error: --league-id (-l) and --gameweek (-g) are required for generating summaries")
+        print("Use --help for usage information")
+        return
     
     print("🚀 Generating FPL Gameweek Summary...")
     summary = generate_gameweek_summary(league_id, gameweek)
