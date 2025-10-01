@@ -252,38 +252,41 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
     captain_choices = {}
-    
+
     for manager in standings:
         manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
         if manager_data:
             captain_found = False
-            
+            active_chip = manager_data.get('active_chip')
+
             for pick in manager_data['picks']:
                 player_name = get_player_name(pick['element'], bootstrap_data)
                 player_data = get_player_data(pick['element'], bootstrap_data)
-                
+
                 if not player_data:
                     continue
-                    
+
                 player_points = player_data['event_points']
-                
-                # Check if this is the active captain (multiplier = 2)
-                if pick['multiplier'] == 2:
+
+                # Check if this is the active captain (multiplier = 2 or 3 for triple captain)
+                if pick['multiplier'] >= 2:
                     captain_found = True
-                    
+
                     # Group by captain choice
                     if player_name not in captain_choices:
                         captain_choices[player_name] = {
                             'points': player_points,
                             'managers': []
                         }
-                    
-                    # Add manager with vice captain indicator if applicable
-                    manager_display = manager['player_name']
-                    if pick['is_vice_captain']:
-                        manager_display += " (v)"
-                    
-                    captain_choices[player_name]['managers'].append(manager_display)
+
+                    # Build manager display with markers
+                    manager_info = {
+                        'name': manager['player_name'],
+                        'is_vice': pick['is_vice_captain'],
+                        'is_triple': active_chip == '3xc'
+                    }
+
+                    captain_choices[player_name]['managers'].append(manager_info)
                     break
     
     # Captain analysis
@@ -296,7 +299,15 @@ def generate_gameweek_summary(league_id, gameweek=1):
                                reverse=True)
         
         for captain_name, data in sorted_captains:
-            managers_str = ", ".join([f"_{manager}_" for manager in data['managers']])
+            manager_displays = []
+            for manager_info in data['managers']:
+                display = f"_{manager_info['name']}_"
+                if manager_info['is_vice']:
+                    display += " (v)"
+                if manager_info['is_triple']:
+                    display += " *(x3)*"
+                manager_displays.append(display)
+            managers_str = ", ".join(manager_displays)
             summary += f"{captain_name} ({data['points']} pts):\n  {managers_str}\n"
     
     # Get detailed data for fun categories
