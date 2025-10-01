@@ -11,11 +11,11 @@ A Python tool for generating comprehensive Fantasy Premier League gameweek summa
   - Captain analysis with triple captain indicators
   - Positional performance breakdown
   - Bench points tracking with bench boost highlights
-  - Best differential picks (unique high-scoring players)
-  - Transfer analysis with wildcard indicators (gameweek 2+)
+  - Best differential picks
+  - Transfer analysis with wildcard indicators (requires previous gameweek data)
 - Administrative tools:
-  - League cache management and overview
-  - Clear feedback when sections are skipped
+  - League cache management
+  - Skipped section notifications
 - Caches API responses to minimize requests
 - Outputs WhatsApp-ready formatted text
 
@@ -50,7 +50,6 @@ The script generates:
 - Console output with the formatted summary
 - A saved file in `~/.fpl-tools/summaries/` directory
 - Cached API responses in `~/.fpl-tools/cache/` for faster subsequent runs
-- Clear feedback about why certain analysis sections are skipped
 
 ### Administrative Commands
 - `--list-leagues` shows a comprehensive table of cached league data including:
