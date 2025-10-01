@@ -7,12 +7,12 @@ A Python tool for generating comprehensive Fantasy Premier League gameweek summa
 - Fetches data from the official FPL API
 - Generates detailed gameweek summaries with:
   - League standings with position changes
-  - Captain analysis grouped by player choice
-  - Bench points tracking
+  - Chip usage overview
+  - Captain analysis with triple captain indicators
   - Positional performance breakdown
-  - Transfer analysis (gameweek 2+, requires cached data for the previous week)
-  - Chip usage tracking (Wildcard, Free Hit, Bench Boost, Triple Captain)
+  - Bench points tracking with bench boost highlights
   - Best differential picks (unique high-scoring players)
+  - Transfer analysis with wildcard indicators (gameweek 2+)
 - Administrative tools:
   - League cache management and overview
   - Clear feedback when sections are skipped
