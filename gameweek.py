@@ -390,10 +390,15 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 transfers = manager_transfer['transfers_made']
                 if transfers not in transfer_groups:
                     transfer_groups[transfers] = []
-                
+
                 # Format manager name with cost if applicable
                 cost_str = f" (-{manager_transfer['transfer_cost']} pts)" if manager_transfer['transfer_cost'] > 0 else ""
                 manager_display = f"_{manager_transfer['manager']}{cost_str}_"
+
+                # Add wildcard indicator if applicable
+                if manager_transfer.get('used_wildcard', False):
+                    manager_display += " *(wc)*"
+
                 transfer_groups[transfers].append(manager_display)
             
             # Display grouped transfers (sorted by number of transfers, descending)
@@ -505,10 +510,13 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
         # Get transfer info
         transfers_made = current_data['entry_history']['event_transfers']
         transfer_cost = current_data['entry_history']['event_transfers_cost']
-        
-        # Skip if no transfers or used wildcard/free hit (unlimited transfers)
         active_chip = current_data.get('active_chip')
-        if transfers_made == 0 or active_chip in ['wildcard', 'freehit']:
+
+        # Skip free hit users (they don't actually change their squad)
+        # Skip if no transfers unless they used wildcard (wildcard shows transfers_made as 0)
+        if active_chip == 'freehit':
+            continue
+        if transfers_made == 0 and active_chip != 'wildcard':
             continue
             
         # Find new players by comparing picks
@@ -517,11 +525,15 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
         
         new_players = current_players - previous_players
         removed_players = previous_players - current_players
-        
+
+        # For wildcard users, the actual transfer count is the number of changes made
+        # (API reports 0 for wildcard transfers)
+        actual_transfers = len(new_players) if active_chip == 'wildcard' else transfers_made
+
         # Calculate points scored by new players
         new_player_points = 0
         new_player_details = []
-        
+
         for player_id in new_players:
             player_data = get_player_data(player_id, bootstrap_data)
             if player_data:
@@ -536,14 +548,15 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
                             'multiplier': pick['multiplier']
                         })
                         break
-        
+
         transfer_stats.append({
             'manager': manager['player_name'],
-            'transfers_made': transfers_made,
+            'transfers_made': actual_transfers,
             'transfer_cost': transfer_cost,
             'new_player_points': new_player_points,
             'new_player_details': new_player_details,
             'net_cost': transfer_cost,  # Points deducted for transfers
+            'used_wildcard': active_chip == 'wildcard'
         })
     
     return transfer_stats
