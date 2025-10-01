@@ -36,10 +36,10 @@
 - [x] **Chip usage tracking** - Display chips used in gameweek (Wildcard, Free Hit, Bench Boost, Triple Captain)
 
 ### Chip features
-- [ ] **Triple captain's log** - Include a `[x3]` note in the captain's log display for manager's that played their triple captain chip
-- [ ] **Wildcard transfer display** - Show `[wc]` in the transfer count display next to managers that played their wildcard chip
+- [x] **Triple captain's log** - Include a `*(x3)*` note in the captain's log display for managers that played their triple captain chip
+- [x] **Wildcard transfer display** - Show `*(wc)*` in the transfer count display next to managers that played their wildcard chip
 - [ ] **Free hit** - Add a free hit section that appears when any manager played a Free Hit chip. This should compare the score of their free hit squad to the score of the squad they had the week before, and display that difference
-- [ ] **Bench boost** - Managers that played their bench boost should get a callout in the bench press section, displaying the points they got for this chip
+- [x] **Bench boost** - Managers that played their bench boost should get a callout in the bench press section, displaying the points they got for this chip
 - [ ] **Available chips** - add a new section that displays the chips each manager has available to them. Let's have an icon for each chip, and display the icon (or a cross) before each manager's name
 
 ## Phase 3: Code Quality & Polish
