@@ -325,35 +325,23 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Bench points
     summary += "\n🪑 *BENCH PRESS*\n"
     if detailed_stats['bench_stats']:
+        # Bench boost callout
+        bench_boosters = [b for b in detailed_stats['bench_stats'] if b.get('used_bench_boost', False)]
+        if bench_boosters:
+            for booster in bench_boosters:
+                summary += f"_{booster['manager']}_ {booster['bench_points']} pts (bench boost)\n"
+
+        # Show "Most Points on Bench" only if the leader didn't use bench boost
         bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
-        summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
+        if not bench_leader.get('used_bench_boost', False):
+            summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
     
     # Best by position
     summary += "\n⚽ *DOING ZONE GOOD*\n"
     if detailed_stats['position_leaders']:
         for pos, leader in detailed_stats['position_leaders'].items():
             summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
-    
-    # Chip usage (only show if any chips were used)
-    chips_used = any(managers for managers in chip_usage.values())
-    if chips_used:
-        summary += "\n🃏 *CHIP OFF THE OLD BLOCK*\n"
-        
-        chip_names = {
-            'wildcard': 'Wildcard',
-            'freehit': 'Free Hit', 
-            'bboost': 'Bench Boost',
-            '3xc': 'Triple Captain'
-        }
-        
-        for chip_key, managers in chip_usage.items():
-            if managers:
-                chip_name = chip_names.get(chip_key, chip_key.title())
-                managers_str = ", ".join([f"_{manager}_" for manager in managers])
-                summary += f"{chip_name}:\n  {managers_str}\n"
-    else:
-        print(click.style("ℹ️  No chips used this gameweek - skipping 'CHIP OFF THE OLD BLOCK' section", fg='yellow'))
-    
+
     # Best differential (only show if there's a clear standout with 6+ points)
     if best_differential['result']:
         summary += "\n🎯 *HIGHCONOCLAST*\n"
@@ -426,7 +414,27 @@ def generate_gameweek_summary(league_id, gameweek=1):
         print(click.style("ℹ️  Transfer analysis not available for gameweek 1 - skipping 'WHEELER DEALER' section", fg='yellow'))
     elif not detailed_stats['transfer_stats']:
         print(click.style("ℹ️  No transfer data available - skipping 'WHEELER DEALER' section", fg='yellow'))
-    
+
+    # Chip usage (only show if any chips were used)
+    chips_used = any(managers for managers in chip_usage.values())
+    if chips_used:
+        summary += "\n🃏 *CHIP OFF THE OLD BLOCK*\n"
+
+        chip_names = {
+            'wildcard': 'Wildcard',
+            'freehit': 'Free Hit',
+            'bboost': 'Bench Boost',
+            '3xc': 'Triple Captain'
+        }
+
+        for chip_key, managers in chip_usage.items():
+            if managers:
+                chip_name = chip_names.get(chip_key, chip_key.title())
+                managers_str = ", ".join([f"_{manager}_" for manager in managers])
+                summary += f"{chip_name}:\n  {managers_str}\n"
+    else:
+        print(click.style("ℹ️  No chips used this gameweek - skipping 'CHIP OFF THE OLD BLOCK' section", fg='yellow'))
+
     return summary
 
 def analyze_chip_usage(standings, gameweek):
@@ -574,16 +582,24 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
         # Calculate bench points
         bench_points = 0
         playing_squad = []
-        
+        active_chip = manager_data.get('active_chip')
+
         for pick in manager_data['picks']:
             player_data = get_player_data(pick['element'], bootstrap_data)
             if not player_data:
                 continue
-                
+
             player_points = player_data['event_points']
-            
-            # Check if player is on bench (multiplier = 0 or position > 11)
-            if pick['multiplier'] == 0:
+
+            # For bench boost, positions 12-15 are the bench (even though multiplier is 1)
+            # Otherwise, bench players have multiplier 0
+            is_bench = False
+            if active_chip == 'bboost':
+                is_bench = pick['position'] > 11
+            else:
+                is_bench = pick['multiplier'] == 0
+
+            if is_bench:
                 bench_points += player_points
             else:
                 playing_squad.append({
@@ -591,10 +607,11 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
                     'points': player_points * pick['multiplier'],
                     'position_type': get_position_type(player_data['element_type'])
                 })
-        
+
         bench_stats.append({
             'manager': manager['player_name'],
-            'bench_points': bench_points
+            'bench_points': bench_points,
+            'used_bench_boost': active_chip == 'bboost'
         })
         
         # Calculate positional points
