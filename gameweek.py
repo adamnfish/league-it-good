@@ -224,7 +224,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     summary += "\n"
     
     # Enhanced league standings
-    summary += "📊 *STANDINGS FOUR NOW*\n"
+    summary += "📊 *FAMOUS (GAMEWEEK) FIVE*\n"
     for manager in standings:
         # Format position change
         change = position_changes.get(manager['entry'])
@@ -326,7 +326,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Chip usage (only show if any chips were used)
     chips_used = any(managers for managers in chip_usage.values())
     if chips_used:
-        summary += "\n🃏 *CHIP OFF THE OLD BLOCK*\n"
+        summary += "\n🎰 *CHIP AWAY*\n"
         
         chip_names = {
             'wildcard': 'Wildcard',
@@ -341,7 +341,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
                 managers_str = ", ".join([f"_{manager}_" for manager in managers])
                 summary += f"{chip_name}:\n  {managers_str}\n"
     else:
-        print(click.style("ℹ️  No chips used this gameweek - skipping 'CHIP OFF THE OLD BLOCK' section", fg='yellow'))
+        print(click.style("ℹ️  No chips used this gameweek - skipping 'chips' section", fg='yellow'))
     
     # Best differential (only show if there's a clear standout with 6+ points)
     if best_differential['result']:
@@ -350,9 +350,9 @@ def generate_gameweek_summary(league_id, gameweek=1):
         summary += f"  {best_differential['result']['player_name']} ({best_differential['result']['points']} pts)\n"
     else:
         if best_differential['reason'] == 'tie':
-            print(click.style(f"ℹ️  Tie for best differential ({best_differential['tied_count']} players with {best_differential['tied_points']} pts) - skipping 'HIGHCONOCLAST' section", fg='yellow'))
+            print(click.style(f"ℹ️  Tie for best differential ({best_differential['tied_count']} players with {best_differential['tied_points']} pts) - skipping 'differential' section", fg='yellow'))
         else:
-            print(click.style("ℹ️  No qualifying differential picks found - skipping 'HIGHCONOCLAST' section", fg='yellow'))
+            print(click.style("ℹ️  No qualifying differential picks found - skipping 'differential' section", fg='yellow'))
             print(click.style("    (requires unique player with 6+ points, no ties)", fg='cyan', dim=True))
     
     # Transfer analysis (for gameweeks > 1)

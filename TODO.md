@@ -42,6 +42,7 @@
 
 ### Technical Improvements
 - [x] **User feedback** - Add logging to the summary generation to describe clarify why sections are skipped
+- [ ] **Restructure application** - Separate modules for FPL / cache / main / display
 - [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `--list-leagues` command
 
 ## Implementation Notes
