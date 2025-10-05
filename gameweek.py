@@ -252,77 +252,55 @@ def generate_gameweek_summary(league_id, gameweek=1):
     # Get captain info for each manager
     print("🔄 Fetching captain details...")
     captain_choices = {}
-    
+
     for manager in standings:
         manager_data = get_manager_gameweek_data(manager['entry'], gameweek)
         if manager_data:
             captain_found = False
-            
+            active_chip = manager_data.get('active_chip')
+
             for pick in manager_data['picks']:
                 player_name = get_player_name(pick['element'], bootstrap_data)
                 player_data = get_player_data(pick['element'], bootstrap_data)
-                
+
                 if not player_data:
                     continue
-                    
+
                 player_points = player_data['event_points']
-                
-                # Check if this is the active captain (multiplier = 2)
-                if pick['multiplier'] == 2:
+
+                # Check if this is the active captain (multiplier = 2 or 3 for triple captain)
+                if pick['multiplier'] >= 2:
                     captain_found = True
-                    
+
                     # Group by captain choice
                     if player_name not in captain_choices:
                         captain_choices[player_name] = {
                             'points': player_points,
                             'managers': []
                         }
-                    
-                    # Add manager with vice captain indicator if applicable
-                    manager_display = manager['player_name']
-                    if pick['is_vice_captain']:
-                        manager_display += " (v)"
-                    
-                    captain_choices[player_name]['managers'].append(manager_display)
+
+                    # Build manager display with markers
+                    manager_info = {
+                        'name': manager['player_name'],
+                        'is_vice': pick['is_vice_captain'],
+                        'is_triple': active_chip == '3xc'
+                    }
+
+                    captain_choices[player_name]['managers'].append(manager_info)
                     break
-    
-    # Captain analysis
-    if captain_choices:
-        summary += "\n👑 *CAPTAINS LOG*\n"
-        
-        # Sort by points, then by popularity
-        sorted_captains = sorted(captain_choices.items(), 
-                               key=lambda x: (x[1]['points'], len(x[1]['managers'])), 
-                               reverse=True)
-        
-        for captain_name, data in sorted_captains:
-            managers_str = ", ".join([f"_{manager}_" for manager in data['managers']])
-            summary += f"{captain_name} ({data['points']} pts):\n  {managers_str}\n"
     
     # Get detailed data for fun categories
     print("🔄 Analyzing bench points and position stats...")
     detailed_stats = analyze_detailed_stats(standings, gameweek, bootstrap_data)
-    
+
     # Get chip usage
     print("🔄 Checking chip usage...")
     chip_usage = analyze_chip_usage(standings, gameweek)
-    
+
     # Get differential analysis
     print("🔄 Analyzing differential picks...")
     best_differential = analyze_best_differential(standings, gameweek, bootstrap_data)
-    
-    # Bench points
-    summary += "\n🪑 *BENCH PRESS*\n"
-    if detailed_stats['bench_stats']:
-        bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
-        summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
-    
-    # Best by position
-    summary += "\n⚽ *DOING ZONE GOOD*\n"
-    if detailed_stats['position_leaders']:
-        for pos, leader in detailed_stats['position_leaders'].items():
-            summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
-    
+
     # Chip usage (only show if any chips were used)
     chips_used = any(managers for managers in chip_usage.values())
     if chips_used:
@@ -330,19 +308,60 @@ def generate_gameweek_summary(league_id, gameweek=1):
         
         chip_names = {
             'wildcard': 'Wildcard',
-            'freehit': 'Free Hit', 
+            'freehit': 'Free Hit',
             'bboost': 'Bench Boost',
             '3xc': 'Triple Captain'
         }
-        
+
         for chip_key, managers in chip_usage.items():
             if managers:
                 chip_name = chip_names.get(chip_key, chip_key.title())
                 managers_str = ", ".join([f"_{manager}_" for manager in managers])
                 summary += f"{chip_name}:\n  {managers_str}\n"
     else:
-        print(click.style("ℹ️  No chips used this gameweek - skipping 'chips' section", fg='yellow'))
-    
+        print(click.style("ℹ️  No chips used this gameweek - skipping 'CHIP OFF THE OLD BLOCK' section", fg='yellow'))
+
+    # Captain analysis
+    if captain_choices:
+        summary += "\n👑 *CAPTAINS LOG*\n"
+
+        # Sort by points, then by popularity
+        sorted_captains = sorted(captain_choices.items(),
+                               key=lambda x: (x[1]['points'], len(x[1]['managers'])),
+                               reverse=True)
+
+        for captain_name, data in sorted_captains:
+            manager_displays = []
+            for manager_info in data['managers']:
+                display = f"_{manager_info['name']}_"
+                if manager_info['is_vice']:
+                    display += " (v)"
+                if manager_info['is_triple']:
+                    display += " *(x3)*"
+                manager_displays.append(display)
+            managers_str = ", ".join(manager_displays)
+            summary += f"{captain_name} ({data['points']} pts):\n  {managers_str}\n"
+
+    # Best by position
+    summary += "\n⚽ *DOING ZONE GOOD*\n"
+    if detailed_stats['position_leaders']:
+        for pos, leader in detailed_stats['position_leaders'].items():
+            summary += f"Best {pos.title()}: {leader['manager']} ({leader['points']} pts)\n"
+
+    # Bench points
+    summary += "\n🪑 *BENCH PRESS*\n"
+    if detailed_stats['bench_stats']:
+        # Bench boost callout
+        bench_boosters = [b for b in detailed_stats['bench_stats'] if b.get('used_bench_boost', False)]
+        if bench_boosters:
+            for booster in bench_boosters:
+                summary += f"_{booster['manager']}_ {booster['bench_points']} pts (bench boost)\n"
+
+        # Show "Most Points on Bench" only if the leader didn't use bench boost
+        bench_leader = max(detailed_stats['bench_stats'], key=lambda x: x['bench_points'])
+        if not bench_leader.get('used_bench_boost', False):
+            summary += f"Most Points on Bench: {bench_leader['manager']} ({bench_leader['bench_points']} pts)\n"
+
     # Best differential (only show if there's a clear standout with 6+ points)
     if best_differential['result']:
         summary += "\n🎯 *HIGHCONOCLAST*\n"
@@ -354,11 +373,11 @@ def generate_gameweek_summary(league_id, gameweek=1):
         else:
             print(click.style("ℹ️  No qualifying differential picks found - skipping 'differential' section", fg='yellow'))
             print(click.style("    (requires unique player with 6+ points, no ties)", fg='cyan', dim=True))
-    
+
     # Transfer analysis (for gameweeks > 1)
     if gameweek > 1 and detailed_stats['transfer_stats']:
         summary += "\n💸 *WHEELER DEALER*\n"
-        
+
         # Show transfer activity
         active_managers = [t for t in detailed_stats['transfer_stats'] if t['transfers_made'] > 0]
         if active_managers:
@@ -366,32 +385,37 @@ def generate_gameweek_summary(league_id, gameweek=1):
             if detailed_stats['best_transfer']:
                 best = detailed_stats['best_transfer']
                 summary += f"Best Transfers: {best['manager']} ({best['new_player_points']} pts from new signings)\n"
-            
+
             if detailed_stats['worst_transfer'] and detailed_stats['worst_transfer'] != detailed_stats['best_transfer']:
                 worst = detailed_stats['worst_transfer']
                 net_return = worst['new_player_points'] - worst['net_cost']
                 net_return_str = f"{net_return} pts" if net_return >= 0 else f"{net_return} pts"
                 summary += f"Worst Transfers: {worst['manager']} ({net_return_str} net return)\n"
-            
+
             # Group managers by number of transfers
             transfer_groups = {}
             for manager_transfer in active_managers:
                 transfers = manager_transfer['transfers_made']
                 if transfers not in transfer_groups:
                     transfer_groups[transfers] = []
-                
+
                 # Format manager name with cost if applicable
                 cost_str = f" (-{manager_transfer['transfer_cost']} pts)" if manager_transfer['transfer_cost'] > 0 else ""
                 manager_display = f"_{manager_transfer['manager']}{cost_str}_"
+
+                # Add wildcard indicator if applicable
+                if manager_transfer.get('used_wildcard', False):
+                    manager_display += " *(wc)*"
+
                 transfer_groups[transfers].append(manager_display)
-            
+
             # Display grouped transfers (sorted by number of transfers, descending)
             summary += "\n"
             for transfer_count in sorted(transfer_groups.keys(), reverse=True):
                 managers_str = ", ".join(transfer_groups[transfer_count])
                 plural = "transfers" if transfer_count > 1 else "transfer"
                 summary += f"{transfer_count} {plural}:\n  {managers_str}\n"
-            
+
             # Show managers who didn't make any transfers
             no_transfer_managers = []
             for manager in standings:
@@ -402,7 +426,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
                     # Include if no transfers and didn't use wildcard/free hit
                     if transfers_made == 0 and active_chip not in ['wildcard', 'freehit']:
                         no_transfer_managers.append(f"_{manager['player_name']}_")
-            
+
             if no_transfer_managers:
                 managers_str = ", ".join(no_transfer_managers)
                 summary += f"If it ain't broke...\n  {managers_str}\n"
@@ -410,7 +434,7 @@ def generate_gameweek_summary(league_id, gameweek=1):
         print(click.style("ℹ️  Transfer analysis not available for gameweek 1 - skipping 'WHEELER DEALER' section", fg='yellow'))
     elif not detailed_stats['transfer_stats']:
         print(click.style("ℹ️  No transfer data available - skipping 'WHEELER DEALER' section", fg='yellow'))
-    
+
     return summary
 
 def analyze_chip_usage(standings, gameweek):
@@ -494,10 +518,13 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
         # Get transfer info
         transfers_made = current_data['entry_history']['event_transfers']
         transfer_cost = current_data['entry_history']['event_transfers_cost']
-        
-        # Skip if no transfers or used wildcard/free hit (unlimited transfers)
         active_chip = current_data.get('active_chip')
-        if transfers_made == 0 or active_chip in ['wildcard', 'freehit']:
+
+        # Skip free hit users (they don't actually change their squad)
+        # Skip if no transfers unless they used wildcard (wildcard shows transfers_made as 0)
+        if active_chip == 'freehit':
+            continue
+        if transfers_made == 0 and active_chip != 'wildcard':
             continue
             
         # Find new players by comparing picks
@@ -506,11 +533,15 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
         
         new_players = current_players - previous_players
         removed_players = previous_players - current_players
-        
+
+        # For wildcard users, the actual transfer count is the number of changes made
+        # (API reports 0 for wildcard transfers)
+        actual_transfers = len(new_players) if active_chip == 'wildcard' else transfers_made
+
         # Calculate points scored by new players
         new_player_points = 0
         new_player_details = []
-        
+
         for player_id in new_players:
             player_data = get_player_data(player_id, bootstrap_data)
             if player_data:
@@ -525,14 +556,15 @@ def analyze_transfer_stats(standings, gameweek, bootstrap_data):
                             'multiplier': pick['multiplier']
                         })
                         break
-        
+
         transfer_stats.append({
             'manager': manager['player_name'],
-            'transfers_made': transfers_made,
+            'transfers_made': actual_transfers,
             'transfer_cost': transfer_cost,
             'new_player_points': new_player_points,
             'new_player_details': new_player_details,
             'net_cost': transfer_cost,  # Points deducted for transfers
+            'used_wildcard': active_chip == 'wildcard'
         })
     
     return transfer_stats
@@ -550,16 +582,24 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
         # Calculate bench points
         bench_points = 0
         playing_squad = []
-        
+        active_chip = manager_data.get('active_chip')
+
         for pick in manager_data['picks']:
             player_data = get_player_data(pick['element'], bootstrap_data)
             if not player_data:
                 continue
-                
+
             player_points = player_data['event_points']
-            
-            # Check if player is on bench (multiplier = 0 or position > 11)
-            if pick['multiplier'] == 0:
+
+            # For bench boost, positions 12-15 are the bench (even though multiplier is 1)
+            # Otherwise, bench players have multiplier 0
+            is_bench = False
+            if active_chip == 'bboost':
+                is_bench = pick['position'] > 11
+            else:
+                is_bench = pick['multiplier'] == 0
+
+            if is_bench:
                 bench_points += player_points
             else:
                 playing_squad.append({
@@ -567,10 +607,11 @@ def analyze_detailed_stats(standings, gameweek, bootstrap_data):
                     'points': player_points * pick['multiplier'],
                     'position_type': get_position_type(player_data['element_type'])
                 })
-        
+
         bench_stats.append({
             'manager': manager['player_name'],
-            'bench_points': bench_points
+            'bench_points': bench_points,
+            'used_bench_boost': active_chip == 'bboost'
         })
         
         # Calculate positional points

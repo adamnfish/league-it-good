@@ -28,7 +28,7 @@ else
     echo "   source .venv/bin/activate"
 fi
 echo "2. Run the script:"
-echo "   python gameweek.py"
+echo "   python gameweek.py --help"
 echo "3. When done, deactivate:"
 echo "   deactivate"
 echo ""
