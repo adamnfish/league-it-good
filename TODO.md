@@ -42,14 +42,34 @@
 - [x] **Bench boost** - Managers that played their bench boost should get a callout in the bench press section, displaying the points they got for this chip
 - [ ] **Available chips** - add a new section that displays the chips each manager has available to them. Let's have an icon for each chip, and display the icon (or a cross) before each manager's name
 
+### Messaging
+
+- [ ] **Gameweek-based table title** - The main table title gets manually changed every week, let's bring that into the logic so the display uses the selected gameweek to decide which title to use
+
 ## Phase 3: Code Quality & Polish
 
 ### Technical Improvements
 - [x] **League-specific output files** - Parameterize filenames with league ID to prevent overwriting
 - [x] **User feedback** - Add logging to the summary generation to describe clarify why sections are skipped
-- [ ] **Restructure application** - Separate modules for FPL / cache / main / display
+- [x] **Restructure application** - Separate modules for FPL / cache / main / display (✨ **COMPLETED!** See REFACTORING.md)
 - [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `--list-leagues` command
-- [ ] **Single data fetch** - Let's fetch the gameweek data we need once up front, and pass this around the program while it runs, rather than have each feature independently lookup the gameweek data
+- [ ] **Single data fetch** - Let's fetch the gameweek data we need once up front, and pass this around the program while it runs, rather than have each feature independently lookup the gameweek/manager data
+- [ ] **Remove legacy entry point** - The gameweek.py file is now deprecated, let's remove it and update all the usage docs
+
+## Phase 4: Tests
+
+### FPL analysis
+
+- [ ] **Fake league data** - Generate cache data for a fake league with historic football stars that can be used for testing analysis logic
+- [ ] **Tests for analysis logic**
+
+### Display
+
+- [ ] **Snapshot tests** - Add snapshot tests for the output, to catch accidental regressions (with an easy way to update the saved snapshot after a deliberate change)
+
+### Storage
+
+- [ ] **Cached league data** - Test the logic that scans the cache in the get_cached_league_data function
 
 ## Implementation Notes
 

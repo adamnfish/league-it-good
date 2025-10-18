@@ -1,1 +1,22 @@
+# Virtual environment
 .venv/
+
+# Test outputs
+tests/baselines/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python distribution / packaging
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
