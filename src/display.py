@@ -48,20 +48,33 @@ def format_gameweek_summary(
     """
     # Find highest and lowest scores for highlighting
     highest_score = max(standings, key=lambda x: x['event_total'])
+    highest_points = highest_score['event_total']
+
+    # Find all managers tied at the top
+    top_scorers = [m for m in standings if m['event_total'] == highest_points]
+
     lowest_score = min(standings, key=lambda x: x['event_total'])
-    
+
     summary = f"🌟 *{league_name}* - Gameweek {gameweek} Summary\n\n"
-    
+
     # Gameweek highlights
     average_score = sum(m['event_total'] for m in standings) / len(standings)
     summary += "🏆 *WEEK AS I AM*\n"
-    summary += f"Week {gameweek} winner: {highest_score['player_name']} ({highest_score['entry_name']}) - {highest_score['event_total']} pts\n"
+
+    # Display winner(s) - handle ties
+    if len(top_scorers) == 1:
+        summary += f"Week {gameweek} winner: {highest_score['player_name']} ({highest_score['entry_name']}) - {highest_score['event_total']} pts\n"
+    else:
+        # Multiple tied winners - use more compact format
+        winner_names = ", ".join([f"{m['player_name']}" for m in top_scorers])
+        summary += f"Week {gameweek} tied winners ({highest_points} pts): {winner_names}\n"
     summary += f"Wooden spoon: {lowest_score['player_name']} ({lowest_score['entry_name']}) - {lowest_score['event_total']} pts\n"
     summary += f"League average: {average_score:.1f} pts\n"
     summary += "\n"
     
     # League standings
-    summary += format_league_standings(standings, position_changes, highest_score['entry'], lowest_score['entry'])
+    highest_ids = [m['entry'] for m in top_scorers]
+    summary += format_league_standings(standings, position_changes, highest_ids, lowest_score['entry'])
     
     # Captain analysis
     if captain_choices:
@@ -103,11 +116,11 @@ def format_gameweek_summary(
     return summary
 
 
-def format_league_standings(standings: list, position_changes: Dict[int, Optional[int]], 
-                            highest_id: int, lowest_id: int) -> str:
+def format_league_standings(standings: list, position_changes: Dict[int, Optional[int]],
+                            highest_ids: List[int], lowest_id: int) -> str:
     """Format the league standings table."""
-    output = "📊 *FAMOUS (GAMEWEEK) FIVE*\n"
-    
+    output = "📊 *CLOUD (GAMEWEEK) NINE*\n"
+
     for manager in standings:
         # Format position change
         change = position_changes.get(manager['entry'])
@@ -119,10 +132,10 @@ def format_league_standings(standings: list, position_changes: Dict[int, Optiona
             change_str = f"(↓{abs(change)}) " if abs(change) > 1 else "(↓1) "
         else:
             change_str = "(=) "
-        
+
         # Format awards
         awards = ""
-        if manager['entry'] == highest_id:
+        if manager['entry'] in highest_ids:
             awards = " ⭐"
         elif manager['entry'] == lowest_id:
             awards = " 💩"
