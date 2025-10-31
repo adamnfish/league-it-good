@@ -21,26 +21,35 @@ A Python tool for generating comprehensive Fantasy Premier League gameweek summa
 
 ## Setup
 
-Run the setup script to create a virtual environment and install dependencies:
+1. Create a virtual environment and install dependencies:
 
 ```bash
 ./setup.sh
 ```
 
+2. Activate the virtual environment and install the package:
+
+```bash
+source .venv/bin/activate
+pip install -e .
+```
+
+This makes the `lig` and `league-it-good` commands available.
+
 ## Usage
 
 ```bash
-# Activate virtual environment
-source .venv/bin/activate
-
 # Generate gameweek summary
-python gameweek.py --league-id YOUR_LEAGUE_ID --gameweek 1
+lig --league-id YOUR_LEAGUE_ID --gameweek 1
+
+# Or use the full name
+league-it-good --league-id YOUR_LEAGUE_ID --gameweek 1
 
 # List cached leagues and their available gameweeks
-python gameweek.py --list-leagues
+lig --list-leagues
 
-# Deactivate when done
-deactivate
+# Show help
+lig --help
 ```
 
 ## Output
