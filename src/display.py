@@ -121,12 +121,23 @@ def get_standings_title(gameweek: int) -> str:
     titles = {
         1: "LET'S GO!",
         2: "TWO GOOD TO BE TRUE",
+        3: "HAT TRICK HEROES",
         4: "STANDINGS FOUR NOW",
         5: "FAMOUS (GAMEWEEK) FIVE",
-        7: "YOU SIX-Y THINGS",
+        6: "YOU SIX-Y THINGS",
         7: "SEVEN DEADLY WINS",
         8: "WHO DO WE APPRECI-8?",
         9: "CLOUD (GAMEWEEK) NINE",
+        10: "PERFECT TEN",
+        11: "THESE GO TO (GW) ELEVEN",
+        12: "TWELFTH GAMEWEEK",
+        13: "UNLUCKY FOR SOME?",
+        16: "SWEET SIXTEEN",
+        17: "DANCING QUEENS",
+        18: "🔞",
+        20: "HINDSIGHT IS GAMEWEEK TWENTY",
+        21: "21 SECONDS TO GO",
+        38: "THE FINAL COUNTDOWN"
     }
     return titles.get(gameweek, "LEAGUE IT GOOD")
 
