@@ -74,7 +74,7 @@ def format_gameweek_summary(
     
     # League standings
     highest_ids = [m['entry'] for m in top_scorers]
-    summary += format_league_standings(standings, position_changes, highest_ids, lowest_score['entry'])
+    summary += format_league_standings(standings, position_changes, highest_ids, lowest_score['entry'], gameweek)
     
     # Captain analysis
     if captain_choices:
@@ -116,10 +116,26 @@ def format_gameweek_summary(
     return summary
 
 
+def get_standings_title(gameweek: int) -> str:
+    """Get the league standings title based on gameweek number."""
+    titles = {
+        1: "LET'S GO!",
+        2: "TWO GOOD TO BE TRUE",
+        4: "STANDINGS FOUR NOW",
+        5: "FAMOUS (GAMEWEEK) FIVE",
+        7: "YOU SIX-Y THINGS",
+        7: "SEVEN DEADLY WINS",
+        8: "WHO DO WE APPRECI-8?",
+        9: "CLOUD (GAMEWEEK) NINE",
+    }
+    return titles.get(gameweek, "LEAGUE IT GOOD")
+
+
 def format_league_standings(standings: list, position_changes: Dict[int, Optional[int]],
-                            highest_ids: List[int], lowest_id: int) -> str:
+                            highest_ids: List[int], lowest_id: int, gameweek: int) -> str:
     """Format the league standings table."""
-    output = "📊 *CLOUD (GAMEWEEK) NINE*\n"
+    title = get_standings_title(gameweek)
+    output = f"📊 *{title}*\n"
 
     for manager in standings:
         # Format position change
