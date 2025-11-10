@@ -325,39 +325,51 @@ def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
     
     max_gw = max(all_gameweeks)
     min_gw = min(all_gameweeks)
-    
-    # Header
-    print(f"{'League ID':<10} {'League Name':<25} {'Teams':<6} Gameweeks Available")
+
+    # Check if any league has 50+ teams to determine column width
+    has_large_league = any(
+        data['team_count'] is not None and data['team_count'] >= 50
+        for data in league_data.values()
+    )
+    team_col_width = 3 if has_large_league else 2
+
+    # Build gameweek numbers for header
+    gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+
+    # Header with 👥 emoji and GW prefix
+    # Note: emoji takes 2 display columns but Python counts it as 1 char, so we need less spacing
+    print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
     print("-" * 80)
-    
+
     for league_id in sorted(league_data.keys()):
         data = league_data[league_id]
         gameweeks = data['gameweeks']
         team_count = data['team_count']
         league_name = data['league_name'] or 'Unknown'
-        
+
         # Truncate league name if too long
         if len(league_name) > 23:
             league_name = league_name[:20] + "..."
-        
+
         if team_count is None:
             team_count_str = '?'
         elif team_count >= 50:
             team_count_str = '50+'
         else:
             team_count_str = str(team_count)
-        
-        # Build gameweek display with missing weeks marked
+
+        # Build gameweek display with ✓ for present, x for missing
+        # Pad icons to match width of gameweek numbers (2 chars for 10+, 1 char for 1-9)
+        # Left-align so icons line up with first digit of gameweek number
         gw_display = []
         for gw in range(min_gw, max_gw + 1):
+            gw_width = len(str(gw))
             if gw in gameweeks:
-                gw_display.append(str(gw))
+                gw_display.append(f"{'✓':<{gw_width}}")
             else:
-                gw_str = str(gw)
-                x_padded = "x" * len(gw_str)
-                gw_display.append(click.style(x_padded, bold=True))
-        
+                gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
+
         gw_string = " ".join(gw_display)
-        print(f"{league_id:<10} {league_name:<25} {team_count_str:<6} {gw_string}")
-    
-    print(f"\nLegend: {click.style('x', bold=True)} = missing gameweek data")
+        print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
+
+    print(f"\nLegend: ✓ = gameweek cached, {click.style('x', bold=True)} = missing gameweek data")

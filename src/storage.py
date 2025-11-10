@@ -13,20 +13,34 @@ It only deals with storing and retrieving data from the filesystem.
 
 import json
 import os
+import zipfile
+from datetime import datetime
 from typing import Optional, Dict, Any, List, Set
 
 
 def get_data_dir() -> str:
     """
     Get the base data directory path.
-    
+
     Currently uses .fpl-tools, will migrate to .league-it-good later.
-    
+
     Returns:
         str: Absolute path to data directory
     """
     home_dir = os.path.expanduser("~")
     return os.path.join(home_dir, ".fpl-tools")
+
+
+def get_backups_dir() -> str:
+    """
+    Get the backups directory path, creating it if needed.
+
+    Returns:
+        str: Absolute path to backups directory
+    """
+    backups_dir = os.path.join(get_data_dir(), "backups")
+    os.makedirs(backups_dir, exist_ok=True)
+    return backups_dir
 
 
 def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = None, 
@@ -174,5 +188,83 @@ def get_cached_league_data() -> Dict[int, Dict[str, Any]]:
     # Convert sets to sorted lists
     for league_id in league_data:
         league_data[league_id]['gameweeks'] = sorted(league_data[league_id]['gameweeks'])
-    
+
     return league_data
+
+
+def generate_backup_filename(prefix: str = "fpl-cache") -> str:
+    """
+    Generate timestamped backup filename.
+
+    Args:
+        prefix: Filename prefix (default: "fpl-cache")
+
+    Returns:
+        str: Filename like "fpl-cache-2025-11-10-143000.zip"
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    return f"{prefix}-{timestamp}.zip"
+
+
+def export_cache(output_path: Optional[str] = None) -> str:
+    """
+    Export cache to zip archive.
+
+    Args:
+        output_path: Optional path for archive. If None, generates timestamped
+                    file in backups directory.
+
+    Returns:
+        str: Path to created archive file
+
+    Raises:
+        FileNotFoundError: If cache directory doesn't exist or is empty
+    """
+    cache_dir = os.path.join(get_data_dir(), "cache")
+
+    if not os.path.exists(cache_dir):
+        raise FileNotFoundError(f"Cache directory not found: {cache_dir}")
+
+    # Generate output path if not provided
+    if output_path is None:
+        output_path = os.path.join(get_backups_dir(), generate_backup_filename())
+
+    # Ensure output directory exists
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+
+    # Create archive
+    with zipfile.ZipFile(output_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # Add all gameweek directories
+        gw_count = 0
+        file_count = 0
+
+        for item in os.listdir(cache_dir):
+            item_path = os.path.join(cache_dir, item)
+            if os.path.isdir(item_path) and item.startswith("gw"):
+                gw_count += 1
+                # Add all files in gameweek directory
+                for root, dirs, files in os.walk(item_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        # Store with relative path from cache dir
+                        arcname = os.path.relpath(file_path, cache_dir)
+                        zipf.write(file_path, arcname)
+                        file_count += 1
+
+        if file_count == 0:
+            raise FileNotFoundError("No cache files found to export")
+
+        # Create metadata
+        metadata = {
+            "export_date": datetime.now().isoformat(),
+            "tool_version": "1.0.0",  # Could be read from package metadata
+            "gameweek_count": gw_count,
+            "file_count": file_count
+        }
+
+        # Add metadata to archive
+        zipf.writestr("metadata.json", json.dumps(metadata, indent=2))
+
+    return output_path

@@ -91,13 +91,27 @@ def generate_summary(league_id: int, gameweek: int) -> str:
 @click.option('--league-id', '-l', type=int, help='FPL league ID')
 @click.option('--gameweek', '-g', type=int, help='Gameweek number')
 @click.option('--list-leagues', is_flag=True, help='List all cached league IDs')
-def cli(league_id, gameweek, list_leagues):
+@click.option('--export-cache', type=click.Path(), default=None,
+              help='Export cache to archive file')
+def cli(league_id, gameweek, list_leagues, export_cache):
     """Generate FPL gameweek summary for a specific league and gameweek."""
-    
+
     if list_leagues:
         # Call the function to list leagues
         league_data = storage.get_cached_league_data()
         display.format_admin_table(league_data)
+        return
+
+    if export_cache:
+        # Export cache to archive
+        try:
+            print("📦 Exporting cache...")
+            archive_path = storage.export_cache(export_cache)
+            print(f"✓ Cache exported to: {archive_path}")
+        except FileNotFoundError as e:
+            print(f"❌ Error: {e}")
+        except Exception as e:
+            print(f"❌ Failed to export cache: {e}")
         return
     
     # Validate required arguments for summary generation
