@@ -93,7 +93,9 @@ def generate_summary(league_id: int, gameweek: int) -> str:
 @click.option('--list-leagues', is_flag=True, help='List all cached league IDs')
 @click.option('--export-cache', type=click.Path(), default=None,
               help='Export cache to archive file')
-def cli(league_id, gameweek, list_leagues, export_cache):
+@click.option('--describe-backup', type=click.Path(exists=True), default=None,
+              help='Show information about a backup archive')
+def cli(league_id, gameweek, list_leagues, export_cache, describe_backup):
     """Generate FPL gameweek summary for a specific league and gameweek."""
 
     if list_leagues:
@@ -113,7 +115,26 @@ def cli(league_id, gameweek, list_leagues, export_cache):
         except Exception as e:
             print(f"❌ Failed to export cache: {e}")
         return
-    
+
+    if describe_backup:
+        # Describe backup archive contents
+        try:
+            # Read and display metadata
+            metadata = storage.read_backup_metadata(describe_backup)
+            print(f"Backup Archive: {describe_backup}")
+            print(f"Exported: {metadata.get('export_date', 'Unknown')}")
+            print(f"Tool Version: {metadata.get('tool_version', 'Unknown')}")
+            print()
+
+            # Display league data using existing format
+            league_data = storage.describe_backup(describe_backup)
+            display.format_admin_table(league_data)
+        except FileNotFoundError as e:
+            print(f"❌ Error: {e}")
+        except Exception as e:
+            print(f"❌ Failed to describe backup: {e}")
+        return
+
     # Validate required arguments for summary generation
     if not league_id or not gameweek:
         print("Error: --league-id (-l) and --gameweek (-g) are required for generating summaries")

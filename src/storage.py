@@ -268,3 +268,110 @@ def export_cache(output_path: Optional[str] = None) -> str:
         zipf.writestr("metadata.json", json.dumps(metadata, indent=2))
 
     return output_path
+
+
+def read_backup_metadata(archive_path: str) -> Dict[str, Any]:
+    """
+    Read metadata from backup archive.
+
+    Args:
+        archive_path: Path to backup zip file
+
+    Returns:
+        dict: Metadata from archive (export_date, tool_version, etc.)
+
+    Raises:
+        FileNotFoundError: If archive doesn't exist
+        KeyError: If metadata.json not found in archive
+    """
+    if not os.path.exists(archive_path):
+        raise FileNotFoundError(f"Archive not found: {archive_path}")
+
+    with zipfile.ZipFile(archive_path, 'r') as zipf:
+        if 'metadata.json' not in zipf.namelist():
+            # Archive without metadata - return minimal info
+            return {
+                "export_date": "Unknown",
+                "tool_version": "Unknown",
+                "gameweek_count": 0,
+                "file_count": 0
+            }
+
+        metadata_content = zipf.read('metadata.json')
+        return json.loads(metadata_content)
+
+
+def describe_backup(archive_path: str) -> Dict[int, Dict[str, Any]]:
+    """
+    Read backup archive and return league data in same format as list_leagues_data().
+
+    Args:
+        archive_path: Path to backup zip file
+
+    Returns:
+        dict: League data structure matching list_leagues_data() format
+
+    Raises:
+        FileNotFoundError: If archive doesn't exist
+    """
+    if not os.path.exists(archive_path):
+        raise FileNotFoundError(f"Archive not found: {archive_path}")
+
+    league_data: Dict[int, Dict[str, Any]] = {}
+
+    with zipfile.ZipFile(archive_path, 'r') as zipf:
+        # Scan archive contents for gameweek directories and league files
+        for file_path in zipf.namelist():
+            # Skip metadata and non-json files
+            if file_path == 'metadata.json' or not file_path.endswith('.json'):
+                continue
+
+            # Parse path: should be like "gw1/league_123456.json"
+            parts = file_path.split('/')
+            if len(parts) != 2:
+                continue
+
+            gw_dir, filename = parts
+
+            # Extract gameweek number
+            if not gw_dir.startswith('gw'):
+                continue
+
+            try:
+                gw_num = int(gw_dir[2:])
+            except ValueError:
+                continue
+
+            # Look for league files
+            if filename.startswith('league_'):
+                league_id_str = filename[7:-5]  # Remove "league_" prefix and ".json" suffix
+                if league_id_str.isdigit():
+                    league_id = int(league_id_str)
+
+                    # Initialize league entry if needed
+                    if league_id not in league_data:
+                        league_data[league_id] = {
+                            'gameweeks': set(),
+                            'team_count': None,
+                            'league_name': None
+                        }
+
+                    league_data[league_id]['gameweeks'].add(gw_num)
+
+                    # Get team count and league name from the league file
+                    if league_data[league_id]['team_count'] is None or league_data[league_id]['league_name'] is None:
+                        try:
+                            file_content = zipf.read(file_path)
+                            data = json.loads(file_content)
+                            if 'standings' in data and 'results' in data['standings']:
+                                league_data[league_id]['team_count'] = len(data['standings']['results'])
+                            if 'league' in data and 'name' in data['league']:
+                                league_data[league_id]['league_name'] = data['league']['name']
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+
+    # Convert sets to sorted lists
+    for league_id in league_data:
+        league_data[league_id]['gameweeks'] = sorted(league_data[league_id]['gameweeks'])
+
+    return league_data
