@@ -375,3 +375,242 @@ def describe_backup(archive_path: str) -> Dict[int, Dict[str, Any]]:
         league_data[league_id]['gameweeks'] = sorted(league_data[league_id]['gameweeks'])
 
     return league_data
+
+
+def list_cached_gameweeks() -> List[int]:
+    """
+    Return list of gameweek numbers that exist in local cache.
+
+    Returns:
+        List[int]: Sorted list of gameweek numbers found in cache directory
+    """
+    cache_dir = os.path.join(get_data_dir(), "cache")
+
+    if not os.path.exists(cache_dir):
+        return []
+
+    gameweeks = []
+    for item in os.listdir(cache_dir):
+        item_path = os.path.join(cache_dir, item)
+        if os.path.isdir(item_path) and item.startswith("gw"):
+            try:
+                gw_num = int(item[2:])
+                gameweeks.append(gw_num)
+            except ValueError:
+                continue
+
+    return sorted(gameweeks)
+
+
+def create_safety_backup() -> str:
+    """
+    Create timestamped safety backup of current cache before import.
+
+    Returns:
+        str: Path to created backup file
+
+    Raises:
+        FileNotFoundError: If cache directory doesn't exist or is empty
+    """
+    backup_filename = generate_backup_filename(prefix="pre-import")
+    backup_path = os.path.join(get_backups_dir(), backup_filename)
+    return export_cache(backup_path)
+
+
+def _scan_archive_for_leagues(archive_path: str) -> List[tuple]:
+    """
+    Scan archive and return list of (league_id, gameweek) pairs.
+
+    Args:
+        archive_path: Path to archive file
+
+    Returns:
+        List of (league_id, gameweek) tuples found in archive
+    """
+    pairs = set()
+
+    with zipfile.ZipFile(archive_path, 'r') as zipf:
+        for file_path in zipf.namelist():
+            # Skip metadata and non-json files
+            if file_path == 'metadata.json' or not file_path.endswith('.json'):
+                continue
+
+            # Parse path: should be like "gw1/league_123456.json"
+            parts = file_path.split('/')
+            if len(parts) != 2:
+                continue
+
+            gw_dir, filename = parts
+
+            # Extract gameweek number
+            if not gw_dir.startswith('gw'):
+                continue
+
+            try:
+                gw_num = int(gw_dir[2:])
+            except ValueError:
+                continue
+
+            # Look for league files
+            if filename.startswith('league_'):
+                league_id_str = filename[7:-5]  # Remove "league_" and ".json"
+                if league_id_str.isdigit():
+                    league_id = int(league_id_str)
+                    pairs.add((league_id, gw_num))
+
+    return sorted(list(pairs))
+
+
+def _league_file_exists_locally(league_id: int, gameweek: int) -> bool:
+    """
+    Check if a specific league file exists in local cache.
+
+    Args:
+        league_id: League ID to check
+        gameweek: Gameweek number to check
+
+    Returns:
+        bool: True if league file exists locally
+    """
+    cache_dir = os.path.join(get_data_dir(), "cache")
+    league_file = os.path.join(cache_dir, f"gw{gameweek}", f"league_{league_id}.json")
+    return os.path.exists(league_file)
+
+
+def _get_related_files(archive_path: str, league_id: int, gameweek: int) -> List[str]:
+    """
+    Get all files that should be imported for a given league/gameweek.
+
+    This includes:
+    - The league file itself
+    - All manager files for that gameweek
+    - The bootstrap file for that gameweek
+
+    Args:
+        archive_path: Path to archive
+        league_id: League ID
+        gameweek: Gameweek number
+
+    Returns:
+        List of file paths in archive to extract
+    """
+    files_to_extract = []
+    gw_prefix = f"gw{gameweek}/"
+
+    with zipfile.ZipFile(archive_path, 'r') as zipf:
+        for file_path in zipf.namelist():
+            if file_path.startswith(gw_prefix):
+                filename = file_path.split('/')[-1]
+
+                # Include:
+                # 1. The specific league file
+                if filename == f"league_{league_id}.json":
+                    files_to_extract.append(file_path)
+
+                # 2. All manager files (we'll import all managers for the gameweek)
+                elif filename.startswith('manager_'):
+                    files_to_extract.append(file_path)
+
+                # 3. Bootstrap file
+                elif filename == 'bootstrap.json':
+                    files_to_extract.append(file_path)
+
+    return files_to_extract
+
+
+def import_cache(archive_path: str, dry_run: bool = False) -> Dict[str, Any]:
+    """
+    Import missing league/gameweek data from archive.
+
+    Works on a per-league, per-gameweek basis:
+    - Scans archive for all (league_id, gameweek) pairs
+    - For each pair, checks if cache/gw{N}/league_{id}.json exists locally
+    - Imports only missing combinations (along with associated files)
+
+    Args:
+        archive_path: Path to backup archive
+        dry_run: If True, don't actually import, just report what would happen
+
+    Returns:
+        dict: Import report with status for each league/gameweek combination
+              Format: {
+                  'safety_backup': str (path to backup created),
+                  'league_status': {league_id: {gameweek: status}},
+                  'total_imported': int,
+                  'total_skipped': int,
+                  'file_count': int
+              }
+
+    Raises:
+        FileNotFoundError: If archive doesn't exist
+    """
+    if not os.path.exists(archive_path):
+        raise FileNotFoundError(f"Archive not found: {archive_path}")
+
+    # Scan archive for all (league, gameweek) pairs
+    all_pairs = _scan_archive_for_leagues(archive_path)
+
+    # Determine which are missing locally
+    missing_pairs = []
+    existing_pairs = []
+
+    for league_id, gameweek in all_pairs:
+        if _league_file_exists_locally(league_id, gameweek):
+            existing_pairs.append((league_id, gameweek))
+        else:
+            missing_pairs.append((league_id, gameweek))
+
+    # Build status report structure
+    league_status: Dict[int, Dict[int, str]] = {}
+    for league_id, gameweek in all_pairs:
+        if league_id not in league_status:
+            league_status[league_id] = {}
+
+        if (league_id, gameweek) in existing_pairs:
+            league_status[league_id][gameweek] = '✓'  # Already exists
+        elif (league_id, gameweek) in missing_pairs:
+            league_status[league_id][gameweek] = '↓'  # Will import / would import
+
+    # If dry run, return report without importing
+    if dry_run:
+        return {
+            'safety_backup': None,
+            'league_status': league_status,
+            'total_imported': len(missing_pairs),
+            'total_skipped': len(existing_pairs),
+            'file_count': 0,
+            'dry_run': True
+        }
+
+    # Create safety backup before importing
+    safety_backup = None
+    if missing_pairs:  # Only create backup if we're actually importing something
+        try:
+            safety_backup = create_safety_backup()
+        except FileNotFoundError:
+            # No existing cache to backup - that's okay for first import
+            pass
+
+    # Extract missing files
+    cache_dir = os.path.join(get_data_dir(), "cache")
+    total_files = 0
+
+    with zipfile.ZipFile(archive_path, 'r') as zipf:
+        for league_id, gameweek in missing_pairs:
+            # Get all related files for this league/gameweek
+            files_to_extract = _get_related_files(archive_path, league_id, gameweek)
+
+            # Extract each file
+            for file_path in files_to_extract:
+                # Extract to cache directory
+                zipf.extract(file_path, cache_dir)
+                total_files += 1
+
+    return {
+        'safety_backup': safety_backup,
+        'league_status': league_status,
+        'total_imported': len(missing_pairs),
+        'total_skipped': len(existing_pairs),
+        'file_count': total_files,
+        'dry_run': False
+    }
