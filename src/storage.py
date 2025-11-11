@@ -43,6 +43,54 @@ def get_backups_dir() -> str:
     return backups_dir
 
 
+def resolve_backup_name(backup_name: str) -> str:
+    """
+    Resolve backup filename to full path in backups directory.
+
+    Args:
+        backup_name: Filename of backup in backups directory
+
+    Returns:
+        str: Full path to backup file in backups directory
+    """
+    return os.path.join(get_backups_dir(), backup_name)
+
+
+def list_backups() -> List[Dict[str, Any]]:
+    """
+    List all backup archives in the backups directory.
+
+    Returns:
+        List of backup info dicts with keys:
+        - filename: Name of backup file
+        - size: File size in bytes
+        - modified: Modification timestamp (datetime)
+        - path: Full path to file
+    """
+    backups_dir = get_backups_dir()
+    backups = []
+
+    if not os.path.exists(backups_dir):
+        return []
+
+    for filename in os.listdir(backups_dir):
+        if filename.endswith('.zip'):
+            filepath = os.path.join(backups_dir, filename)
+            stat = os.stat(filepath)
+
+            backups.append({
+                'filename': filename,
+                'size': stat.st_size,
+                'modified': datetime.fromtimestamp(stat.st_mtime),
+                'path': filepath
+            })
+
+    # Sort by modification time, newest first
+    backups.sort(key=lambda x: x['modified'], reverse=True)
+
+    return backups
+
+
 def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = None, 
                    manager_id: Optional[int] = None) -> str:
     """

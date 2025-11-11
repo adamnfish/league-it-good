@@ -459,3 +459,42 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
         print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in archive")
+
+
+def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None:
+    """
+    Display list of backup archives.
+
+    Args:
+        backups: List of backup info dicts from storage.list_backups()
+        backups_dir: Path to backups directory
+    """
+    print("📦 Backup Archives\n")
+
+    if not backups:
+        print(f"No backups found in {backups_dir}")
+        return
+
+    def format_size(size_bytes: int) -> str:
+        """Format file size in human-readable format."""
+        if size_bytes < 1024:
+            return f"{size_bytes}B"
+        elif size_bytes < 1024 * 1024:
+            return f"{size_bytes / 1024:.0f}KB"
+        else:
+            return f"{size_bytes / (1024 * 1024):.1f}MB"
+
+    # Display each backup
+    for backup in backups:
+        timestamp = backup['modified'].strftime('%Y-%m-%d %H:%M:%S')
+        size_str = format_size(backup['size'])
+        filename = click.style(backup['filename'], fg='cyan')
+        print(f"{timestamp}  {size_str:>6}  {filename}")
+
+    # Summary
+    print(f"\n{len(backups)} backup{'s' if len(backups) != 1 else ''} found in {backups_dir}")
+
+    # Usage note
+    filename_placeholder = click.style('<filename>', fg='cyan')
+    print(f"\nTo inspect a backup: lig --describe-backup {filename_placeholder}")
+    print(f"To import from backup: lig --import-cache {filename_placeholder} [--dry-run]")
