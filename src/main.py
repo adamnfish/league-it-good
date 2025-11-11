@@ -14,6 +14,21 @@ import click
 from . import storage, fpl, analysis, display
 
 
+@click.group(invoke_without_command=True, context_settings={'help_option_names': ['-h', '--help']})
+@click.pass_context
+def cli(ctx):
+    """
+    League it Good - Fantasy Premier League gameweek summary generator.
+
+    \b
+    Generate gameweek 11 summary for league ID 123456:
+        lig gen -l 123456 -g 11
+    """
+    # If no subcommand is provided, show help
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
 def generate_summary(league_id: int, gameweek: int) -> str:
     """
     Generate a comprehensive gameweek summary.
@@ -87,45 +102,75 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     return summary
 
 
-@click.command()
-@click.option('--league-id', '-l', type=int, help='FPL league ID')
-@click.option('--gameweek', '-g', type=int, help='Gameweek number')
-@click.option('--list-leagues', is_flag=True, help='List all cached league IDs')
-@click.option('--list-backups', is_flag=True, help='List all backup files')
-@click.option('--export-backup', type=click.Path(), default=None,
-              help='Export cache to backup file')
-@click.option('--describe-backup', type=str, default=None,
-              help='Show information about a backup (filename in backups directory)')
-@click.option('--describe-backup-file', type=click.Path(exists=True), default=None,
-              help='Show information about a backup (full path to backup file)')
-@click.option('--import-backup', type=str, default=None,
-              help='Import missing gameweeks from backup (filename in backups directory)')
-@click.option('--import-backup-file', type=click.Path(exists=True), default=None,
-              help='Import missing gameweeks from backup (full path to backup file)')
-@click.option('--dry-run', is_flag=True,
-              help='Show what would be imported without making changes')
-def cli(league_id, gameweek, list_leagues, list_backups, export_backup, describe_backup, describe_backup_file,
-        import_backup, import_backup_file, dry_run):
+@cli.command()
+@click.option('--league-id', '-l', type=int, required=True, help='FPL league ID')
+@click.option('--gameweek', '-g', type=int, required=True, help='Gameweek number')
+def gen(league_id, gameweek):
     """Generate FPL gameweek summary for a specific league and gameweek."""
+    print("🚀 Generating FPL Gameweek Summary...")
+    summary = generate_summary(league_id, gameweek)
+    print("\n" + "="*50)
+    print(summary)
 
-    if list_leagues:
-        # Call the function to list leagues
-        league_data = storage.get_cached_league_data()
-        display.format_admin_table(league_data)
+    # Save to file
+    output_file = storage.save_summary(summary, league_id, gameweek)
+    print(f"\n💾 Summary saved to '{output_file}'")
+
+
+@cli.command('list-leagues')
+def list_leagues_cmd():
+    """List all cached league IDs and their available gameweeks."""
+    league_data = storage.get_cached_league_data()
+    display.format_admin_table(league_data)
+
+
+@cli.command('list-backups')
+def list_backups_cmd():
+    """List all backup files in the backups directory."""
+    backups = storage.list_backups()
+    backups_dir = storage.get_backups_dir()
+    display.format_backups_list(backups, backups_dir)
+
+
+@cli.command()
+@click.option('--export', '-e', 'export_path', is_flag=False, flag_value='', default=None,
+              help='Export cache to backup file (optionally specify path)')
+@click.option('--import', '-i', 'import_name', type=str, default=None,
+              help='Import missing gameweeks from backup')
+@click.option('--describe', '-d', 'describe_name', type=str, default=None,
+              help='Show information about a backup')
+@click.option('--file', '-f', 'use_full_path', is_flag=True,
+              help='Treat argument as full path instead of filename in backups directory')
+@click.option('--dry-run', is_flag=True,
+              help='Show what would be imported without making changes (import only)')
+def backup(export_path, import_name, describe_name, use_full_path, dry_run):
+    """Manage backup archives (export, import, or describe)."""
+
+    # Determine if export was requested (None = not requested, '' = requested with default, other = custom path)
+    export_requested = export_path is not None
+
+    # Normalize export_path: empty string means use default (None to storage.export_backup)
+    if export_path == '':
+        export_path = None
+
+    # Count how many operations were requested
+    operations = sum([export_requested, import_name is not None, describe_name is not None])
+
+    if operations == 0:
+        print("❌ Error: Must specify one of --export, --import, or --describe")
+        print("Use 'lig backup --help' for usage information")
         return
 
-    if list_backups:
-        # List backup archives
-        backups = storage.list_backups()
-        backups_dir = storage.get_backups_dir()
-        display.format_backups_list(backups, backups_dir)
+    if operations > 1:
+        print("❌ Error: Cannot use --export, --import, and --describe together")
+        print("Please specify only one operation")
         return
 
-    if export_backup:
-        # Export cache to backup
+    # Export operation
+    if export_requested:
         try:
             print("📦 Creating backup...")
-            backup_path = storage.export_backup(export_backup)
+            backup_path = storage.export_backup(export_path if export_path else None)
             print(f"✓ Backup created: {backup_path}")
         except FileNotFoundError as e:
             print(f"❌ Error: {e}")
@@ -133,16 +178,11 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_backup, describe
             print(f"❌ Failed to create backup: {e}")
         return
 
-    if describe_backup or describe_backup_file:
-        # Check mutual exclusivity
-        if describe_backup and describe_backup_file:
-            print("❌ Error: Cannot use both --describe-backup and --describe-backup-file")
-            return
+    # Describe operation
+    if describe_name:
+        # Resolve backup path based on --file flag
+        backup_path = describe_name if use_full_path else storage.resolve_backup_name(describe_name)
 
-        # Resolve backup path
-        backup_path = describe_backup_file if describe_backup_file else storage.resolve_backup_name(describe_backup)
-
-        # Describe backup archive contents
         try:
             # Read and display metadata
             metadata = storage.read_backup_metadata(backup_path)
@@ -160,16 +200,11 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_backup, describe
             print(f"❌ Failed to describe backup: {e}")
         return
 
-    if import_backup or import_backup_file:
-        # Check mutual exclusivity
-        if import_backup and import_backup_file:
-            print("❌ Error: Cannot use both --import-backup and --import-backup-file")
-            return
+    # Import operation
+    if import_name:
+        # Resolve backup path based on --file flag
+        backup_path = import_name if use_full_path else storage.resolve_backup_name(import_name)
 
-        # Resolve backup path
-        backup_path = import_backup_file if import_backup_file else storage.resolve_backup_name(import_backup)
-
-        # Import missing data from backup
         try:
             if dry_run:
                 print("DRY RUN: No changes will be made\n")
@@ -207,21 +242,6 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_backup, describe
         except Exception as e:
             print(f"❌ Failed to import backup: {e}")
         return
-
-    # Validate required arguments for summary generation
-    if not league_id or not gameweek:
-        print("Error: --league-id (-l) and --gameweek (-g) are required for generating summaries")
-        print("Use --help for usage information")
-        return
-    
-    print("🚀 Generating FPL Gameweek Summary...")
-    summary = generate_summary(league_id, gameweek)
-    print("\n" + "="*50)
-    print(summary)
-    
-    # Save to file
-    output_file = storage.save_summary(summary, league_id, gameweek)
-    print(f"\n💾 Summary saved to '{output_file}'")
 
 
 if __name__ == "__main__":

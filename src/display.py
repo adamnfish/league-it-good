@@ -337,7 +337,6 @@ def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
     gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
 
     # Header with 👥 emoji and GW prefix
-    # Note: emoji takes 2 display columns but Python counts it as 1 char, so we need less spacing
     print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
     print("-" * 80)
 
@@ -496,5 +495,5 @@ def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None
 
     # Usage note
     filename_placeholder = click.style('<filename>', fg='cyan')
-    print(f"\nTo inspect a backup: lig --describe-backup {filename_placeholder}")
-    print(f"To import from backup: lig --import-backup {filename_placeholder} [--dry-run]")
+    print(f"\nTo inspect a backup: lig backup -d {filename_placeholder}")
+    print(f"To import from backup: lig backup -i {filename_placeholder} [--dry-run]")
