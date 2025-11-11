@@ -91,21 +91,21 @@ def generate_summary(league_id: int, gameweek: int) -> str:
 @click.option('--league-id', '-l', type=int, help='FPL league ID')
 @click.option('--gameweek', '-g', type=int, help='Gameweek number')
 @click.option('--list-leagues', is_flag=True, help='List all cached league IDs')
-@click.option('--list-backups', is_flag=True, help='List all backup archives')
-@click.option('--export-cache', type=click.Path(), default=None,
-              help='Export cache to archive file')
+@click.option('--list-backups', is_flag=True, help='List all backup files')
+@click.option('--export-backup', type=click.Path(), default=None,
+              help='Export cache to backup file')
 @click.option('--describe-backup', type=str, default=None,
               help='Show information about a backup (filename in backups directory)')
 @click.option('--describe-backup-file', type=click.Path(exists=True), default=None,
-              help='Show information about a backup (full path to archive file)')
-@click.option('--import-cache', type=str, default=None,
+              help='Show information about a backup (full path to backup file)')
+@click.option('--import-backup', type=str, default=None,
               help='Import missing gameweeks from backup (filename in backups directory)')
-@click.option('--import-cache-file', type=click.Path(exists=True), default=None,
-              help='Import missing gameweeks from archive (full path to archive file)')
+@click.option('--import-backup-file', type=click.Path(exists=True), default=None,
+              help='Import missing gameweeks from backup (full path to backup file)')
 @click.option('--dry-run', is_flag=True,
               help='Show what would be imported without making changes')
-def cli(league_id, gameweek, list_leagues, list_backups, export_cache, describe_backup, describe_backup_file,
-        import_cache, import_cache_file, dry_run):
+def cli(league_id, gameweek, list_leagues, list_backups, export_backup, describe_backup, describe_backup_file,
+        import_backup, import_backup_file, dry_run):
     """Generate FPL gameweek summary for a specific league and gameweek."""
 
     if list_leagues:
@@ -121,16 +121,16 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_cache, describe_
         display.format_backups_list(backups, backups_dir)
         return
 
-    if export_cache:
-        # Export cache to archive
+    if export_backup:
+        # Export cache to backup
         try:
-            print("📦 Exporting cache...")
-            archive_path = storage.export_cache(export_cache)
-            print(f"✓ Cache exported to: {archive_path}")
+            print("📦 Creating backup...")
+            backup_path = storage.export_backup(export_backup)
+            print(f"✓ Backup created: {backup_path}")
         except FileNotFoundError as e:
             print(f"❌ Error: {e}")
         except Exception as e:
-            print(f"❌ Failed to export cache: {e}")
+            print(f"❌ Failed to create backup: {e}")
         return
 
     if describe_backup or describe_backup_file:
@@ -160,25 +160,25 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_cache, describe_
             print(f"❌ Failed to describe backup: {e}")
         return
 
-    if import_cache or import_cache_file:
+    if import_backup or import_backup_file:
         # Check mutual exclusivity
-        if import_cache and import_cache_file:
-            print("❌ Error: Cannot use both --import-cache and --import-cache-file")
+        if import_backup and import_backup_file:
+            print("❌ Error: Cannot use both --import-backup and --import-backup-file")
             return
 
         # Resolve backup path
-        backup_path = import_cache_file if import_cache_file else storage.resolve_backup_name(import_cache)
+        backup_path = import_backup_file if import_backup_file else storage.resolve_backup_name(import_backup)
 
-        # Import missing data from archive
+        # Import missing data from backup
         try:
             if dry_run:
                 print("DRY RUN: No changes will be made\n")
-                print(f"Would import from {backup_path}:\n")
+                print(f"Would import from backup:\n{backup_path}\n")
             else:
-                print(f"Importing from {backup_path}...\n")
+                print(f"Importing from backup:\n{backup_path}\n")
 
             # Perform import (or dry-run)
-            import_result = storage.import_cache(backup_path, dry_run=dry_run)
+            import_result = storage.import_backup(backup_path, dry_run=dry_run)
 
             # Get league metadata from archive for display
             league_data = storage.describe_backup(backup_path)
@@ -205,7 +205,7 @@ def cli(league_id, gameweek, list_leagues, list_backups, export_cache, describe_
         except FileNotFoundError as e:
             print(f"❌ Error: {e}")
         except Exception as e:
-            print(f"❌ Failed to import cache: {e}")
+            print(f"❌ Failed to import backup: {e}")
         return
 
     # Validate required arguments for summary generation

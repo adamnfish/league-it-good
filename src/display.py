@@ -382,8 +382,8 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
 
     Similar to format_admin_table() but uses status icons from import:
     - ✓ = Already exists locally (skipped)
-    - ↓ = Imported from archive
-    - x = Not in archive
+    - ↓ = Imported from backup
+    - x = Not in backup
 
     Args:
         league_data: League structure (same format as list_leagues_data())
@@ -448,7 +448,7 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
             if league_id in import_status and gw in import_status[league_id]:
                 status = import_status[league_id][gw]
                 gw_display.append(f"{status:<{gw_width}}")
-            # If not in archive, show x
+            # If not in backup, show x
             elif gw not in gameweeks_in_archive:
                 gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
             else:
@@ -458,7 +458,7 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
         gw_string = " ".join(gw_display)
         print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
-    print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in archive")
+    print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in backup")
 
 
 def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None:
@@ -497,4 +497,4 @@ def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None
     # Usage note
     filename_placeholder = click.style('<filename>', fg='cyan')
     print(f"\nTo inspect a backup: lig --describe-backup {filename_placeholder}")
-    print(f"To import from backup: lig --import-cache {filename_placeholder} [--dry-run]")
+    print(f"To import from backup: lig --import-backup {filename_placeholder} [--dry-run]")

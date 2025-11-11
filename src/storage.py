@@ -254,16 +254,16 @@ def generate_backup_filename(prefix: str = "fpl-cache") -> str:
     return f"{prefix}-{timestamp}.zip"
 
 
-def export_cache(output_path: Optional[str] = None) -> str:
+def export_backup(output_path: Optional[str] = None) -> str:
     """
-    Export cache to zip archive.
+    Export cache to backup archive.
 
     Args:
-        output_path: Optional path for archive. If None, generates timestamped
+        output_path: Optional path for backup file. If None, generates timestamped
                     file in backups directory.
 
     Returns:
-        str: Path to created archive file
+        str: Path to created backup file
 
     Raises:
         FileNotFoundError: If cache directory doesn't exist or is empty
@@ -462,7 +462,7 @@ def create_safety_backup() -> str:
     """
     backup_filename = generate_backup_filename(prefix="pre-import")
     backup_path = os.path.join(get_backups_dir(), backup_filename)
-    return export_cache(backup_path)
+    return export_backup(backup_path)
 
 
 def _scan_archive_for_leagues(archive_path: str) -> List[tuple]:
@@ -566,17 +566,17 @@ def _get_related_files(archive_path: str, league_id: int, gameweek: int) -> List
     return files_to_extract
 
 
-def import_cache(archive_path: str, dry_run: bool = False) -> Dict[str, Any]:
+def import_backup(archive_path: str, dry_run: bool = False) -> Dict[str, Any]:
     """
-    Import missing league/gameweek data from archive.
+    Import missing league/gameweek data from backup.
 
     Works on a per-league, per-gameweek basis:
-    - Scans archive for all (league_id, gameweek) pairs
+    - Scans backup for all (league_id, gameweek) pairs
     - For each pair, checks if cache/gw{N}/league_{id}.json exists locally
     - Imports only missing combinations (along with associated files)
 
     Args:
-        archive_path: Path to backup archive
+        archive_path: Path to backup file
         dry_run: If True, don't actually import, just report what would happen
 
     Returns:
@@ -590,10 +590,10 @@ def import_cache(archive_path: str, dry_run: bool = False) -> Dict[str, Any]:
               }
 
     Raises:
-        FileNotFoundError: If archive doesn't exist
+        FileNotFoundError: If backup file doesn't exist
     """
     if not os.path.exists(archive_path):
-        raise FileNotFoundError(f"Archive not found: {archive_path}")
+        raise FileNotFoundError(f"Backup not found: {archive_path}")
 
     # Scan archive for all (league, gameweek) pairs
     all_pairs = _scan_archive_for_leagues(archive_path)
