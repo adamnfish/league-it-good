@@ -95,7 +95,11 @@ def generate_summary(league_id: int, gameweek: int) -> str:
               help='Export cache to archive file')
 @click.option('--describe-backup', type=click.Path(exists=True), default=None,
               help='Show information about a backup archive')
-def cli(league_id, gameweek, list_leagues, export_cache, describe_backup):
+@click.option('--import-cache', type=click.Path(exists=True), default=None,
+              help='Import missing gameweeks from archive')
+@click.option('--dry-run', is_flag=True,
+              help='Show what would be imported without making changes')
+def cli(league_id, gameweek, list_leagues, export_cache, describe_backup, import_cache, dry_run):
     """Generate FPL gameweek summary for a specific league and gameweek."""
 
     if list_leagues:
@@ -133,6 +137,46 @@ def cli(league_id, gameweek, list_leagues, export_cache, describe_backup):
             print(f"❌ Error: {e}")
         except Exception as e:
             print(f"❌ Failed to describe backup: {e}")
+        return
+
+    if import_cache:
+        # Import missing data from archive
+        try:
+            if dry_run:
+                print("DRY RUN: No changes will be made\n")
+                print(f"Would import from {import_cache}:\n")
+            else:
+                print(f"Importing from {import_cache}...\n")
+
+            # Perform import (or dry-run)
+            import_result = storage.import_cache(import_cache, dry_run=dry_run)
+
+            # Get league metadata from archive for display
+            league_data = storage.describe_backup(import_cache)
+
+            # Show safety backup info (if created)
+            if import_result['safety_backup'] and not dry_run:
+                print(f"Created safety backup: {import_result['safety_backup']}\n")
+
+            # Display import table
+            display.format_import_table(league_data, import_result['league_status'])
+
+            # Show summary
+            print()
+            if dry_run:
+                print("Summary:")
+                print(f"↓ Would import: {import_result['total_imported']} league/gameweek combinations")
+                print(f"- Would skip: {import_result['total_skipped']} combinations (already exist)")
+                print("\nRun without --dry-run to perform import")
+            else:
+                print("Summary:")
+                print(f"↓ Total imported: {import_result['total_imported']} league/gameweek combinations ({import_result['file_count']} files)")
+                print(f"- Total skipped: {import_result['total_skipped']} combinations (already exist)")
+
+        except FileNotFoundError as e:
+            print(f"❌ Error: {e}")
+        except Exception as e:
+            print(f"❌ Failed to import cache: {e}")
         return
 
     # Validate required arguments for summary generation

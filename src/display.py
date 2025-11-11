@@ -373,3 +373,89 @@ def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
         print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = gameweek cached, {click.style('x', bold=True)} = missing gameweek data")
+
+
+def format_import_table(league_data: Dict[int, Dict[str, Any]],
+                       import_status: Dict[int, Dict[int, str]]) -> None:
+    """
+    Display import results table with status icons.
+
+    Similar to format_admin_table() but uses status icons from import:
+    - ✓ = Already exists locally (skipped)
+    - ↓ = Imported from archive
+    - x = Not in archive
+
+    Args:
+        league_data: League structure (same format as list_leagues_data())
+        import_status: Dict mapping league_id -> {gameweek -> status_icon}
+    """
+    if not league_data:
+        print("No league data found")
+        return
+
+    print("=" * 80)
+
+    # Find the maximum gameweek across all leagues
+    all_gameweeks = set()
+    for data in league_data.values():
+        all_gameweeks.update(data['gameweeks'])
+
+    if not all_gameweeks:
+        print("No gameweek data found")
+        return
+
+    max_gw = max(all_gameweeks)
+    min_gw = min(all_gameweeks)
+
+    # Check if any league has 50+ teams to determine column width
+    has_large_league = any(
+        data['team_count'] is not None and data['team_count'] >= 50
+        for data in league_data.values()
+    )
+    team_col_width = 3 if has_large_league else 2
+
+    # Build gameweek numbers for header
+    gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+
+    # Header with 👥 emoji and GW prefix
+    print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
+    print("-" * 80)
+
+    for league_id in sorted(league_data.keys()):
+        data = league_data[league_id]
+        gameweeks_in_archive = data['gameweeks']
+        team_count = data['team_count']
+        league_name = data['league_name'] or 'Unknown'
+
+        # Truncate league name if too long
+        if len(league_name) > 23:
+            league_name = league_name[:20] + "..."
+
+        if team_count is None:
+            team_count_str = '?'
+        elif team_count >= 50:
+            team_count_str = '50+'
+        else:
+            team_count_str = str(team_count)
+
+        # Build gameweek display with status icons
+        # Pad icons to match width of gameweek numbers
+        gw_display = []
+        for gw in range(min_gw, max_gw + 1):
+            gw_width = len(str(gw))
+
+            # Get status from import_status
+            if league_id in import_status and gw in import_status[league_id]:
+                status = import_status[league_id][gw]
+                gw_display.append(f"{status:<{gw_width}}")
+            # If not in archive, show x
+            elif gw not in gameweeks_in_archive:
+                gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
+            else:
+                # Shouldn't happen, but default to ?
+                gw_display.append(f"{'?':<{gw_width}}")
+
+        gw_string = " ".join(gw_display)
+        print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
+
+    print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in archive")
