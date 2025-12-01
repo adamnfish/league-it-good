@@ -378,6 +378,13 @@ def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
             print(f"⚠️  Could not fetch entry data for {manager['player_name']}")
             continue
 
+        # DEBUG: Print the actual structure of the data
+        print(f"\nDEBUG: {manager['player_name']} entry data keys: {list(entry_data.keys())}")
+        if 'chips' in entry_data:
+            print(f"DEBUG: {manager['player_name']} chips field: {entry_data['chips']}")
+        else:
+            print(f"DEBUG: {manager['player_name']} has NO 'chips' field in entry data")
+
         # Get list of chips already used
         used_chips = set()
         if 'chips' in entry_data:
