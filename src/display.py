@@ -476,7 +476,7 @@ def format_chip_availability(chip_data: Dict[str, List[str]]) -> str:
     Returns:
         str: Formatted chip availability section
     """
-    output = "\n💳 *CHIP SHAPE*\n"
+    output = "\n🍟 *CHIP SHAPE*\n"
 
     for pattern, managers in chip_data.items():
         managers_str = ", ".join([f"_{manager}_" for manager in managers])
