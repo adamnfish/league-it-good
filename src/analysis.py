@@ -375,6 +375,7 @@ def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
     for manager in standings:
         entry_data = fpl.fetch_manager_entry(manager['entry'])
         if not entry_data:
+            print(f"⚠️  Could not fetch entry data for {manager['player_name']}")
             continue
 
         # Get list of chips already used
@@ -384,6 +385,12 @@ def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
                 chip_name = chip.get('name')
                 if chip_name:
                     used_chips.add(chip_name)
+
+        # DEBUG: Print what chips were found
+        if used_chips:
+            print(f"DEBUG: {manager['player_name']} used chips: {used_chips}")
+        else:
+            print(f"DEBUG: {manager['player_name']} has no chips recorded in API data")
 
         # Determine available chips (first-half chips only)
         # FPL API chip names: 'bboost', '3xc', 'wildcard', 'freehit'
