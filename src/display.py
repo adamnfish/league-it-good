@@ -479,13 +479,13 @@ def format_chip_availability(chip_data: Dict[str, List[str]]) -> str:
     output = "\n💳 *CHIP SHAPE*\n"
 
     for pattern, managers in chip_data.items():
-        managers_str = ", ".join(managers)
+        managers_str = ", ".join([f"_{manager}_" for manager in managers])
 
         # Special label for all chips available
         if pattern == 'BB, TC, WC, FH':
-            output += f"All chips available: {managers_str}\n"
+            output += f"All chips available:\n  {managers_str}\n"
         else:
-            output += f"{pattern}: {managers_str}\n"
+            output += f"{pattern}:\n  {managers_str}\n"
 
     return output
 
