@@ -91,30 +91,32 @@ def list_backups() -> List[Dict[str, Any]]:
     return backups
 
 
-def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = None, 
+def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = None,
                    manager_id: Optional[int] = None) -> str:
     """
     Generate cache file path for a specific data type.
-    
+
     Args:
         gameweek: Gameweek number
-        cache_type: Type of cache ('bootstrap', 'league', or 'manager')
+        cache_type: Type of cache ('bootstrap', 'league', 'manager', or 'history')
         league_id: League ID (required for 'league' type)
-        manager_id: Manager ID (required for 'manager' type)
-    
+        manager_id: Manager ID (required for 'manager' and 'history' types)
+
     Returns:
         str: Absolute path to cache file
     """
     cache_dir = os.path.join(get_data_dir(), "cache", f"gw{gameweek}")
     os.makedirs(cache_dir, exist_ok=True)
-    
+
     if cache_type == "bootstrap":
         return os.path.join(cache_dir, "bootstrap.json")
     elif cache_type == "league":
         return os.path.join(cache_dir, f"league_{league_id}.json")
     elif cache_type == "manager":
         return os.path.join(cache_dir, f"manager_{manager_id}.json")
-    
+    elif cache_type == "history":
+        return os.path.join(cache_dir, f"history_{manager_id}.json")
+
     raise ValueError(f"Unknown cache type: {cache_type}")
 
 
