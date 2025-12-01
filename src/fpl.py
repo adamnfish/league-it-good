@@ -204,27 +204,41 @@ def get_player_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     return "Unknown Player"
 
 
-def fetch_manager_entry(manager_id: int) -> Optional[Dict[Any, Any]]:
+def fetch_manager_history(manager_id: int, gameweek: int) -> Optional[Dict[Any, Any]]:
     """
-    Fetch manager's entry data including chip history.
+    Fetch manager's history data including chip usage.
 
-    This endpoint provides overall manager information including which chips
-    have been used throughout the season. No caching since this changes frequently.
+    This endpoint provides manager history including which chips have been used
+    throughout the season in a 'chips' array at the top level.
 
     Args:
         manager_id: Manager ID
+        gameweek: Gameweek number (for caching)
 
     Returns:
-        dict: Manager's entry data including 'chips' array, or None on error
+        dict: Manager's history data including 'chips' array, or None on error
     """
-    url = f"https://fantasy.premierleague.com/api/entry/{manager_id}/"
+    cache_path = storage.get_cache_path(gameweek, "history", manager_id=manager_id)
+
+    # Try cache first
+    cached_data = storage.load_from_cache(cache_path)
+    if cached_data:
+        return cached_data
+
+    # Fetch from API
+    url = f"https://fantasy.premierleague.com/api/entry/{manager_id}/history/"
 
     try:
         response = requests.get(url)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+
+        # Save to cache
+        storage.save_to_cache(data, cache_path)
+
+        return data
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching manager entry data: {e}")
+        print(f"Error fetching manager history data: {e}")
         return None
 
 

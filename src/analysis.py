@@ -352,7 +352,7 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
     }
 
 
-def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
+def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[str]]:
     """
     Analyze which chips each manager has available.
 
@@ -364,6 +364,7 @@ def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
 
     Args:
         standings: League standings
+        gameweek: Gameweek number
 
     Returns:
         dict: Mapping of chip pattern to list of manager names
@@ -373,31 +374,17 @@ def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
     manager_chips = {}
 
     for manager in standings:
-        entry_data = fpl.fetch_manager_entry(manager['entry'])
-        if not entry_data:
-            print(f"⚠️  Could not fetch entry data for {manager['player_name']}")
+        history_data = fpl.fetch_manager_history(manager['entry'], gameweek)
+        if not history_data:
             continue
 
-        # DEBUG: Print the actual structure of the data
-        print(f"\nDEBUG: {manager['player_name']} entry data keys: {list(entry_data.keys())}")
-        if 'chips' in entry_data:
-            print(f"DEBUG: {manager['player_name']} chips field: {entry_data['chips']}")
-        else:
-            print(f"DEBUG: {manager['player_name']} has NO 'chips' field in entry data")
-
-        # Get list of chips already used
+        # Get list of chips already used from the 'chips' array at top level
         used_chips = set()
-        if 'chips' in entry_data:
-            for chip in entry_data['chips']:
+        if 'chips' in history_data:
+            for chip in history_data['chips']:
                 chip_name = chip.get('name')
                 if chip_name:
                     used_chips.add(chip_name)
-
-        # DEBUG: Print what chips were found
-        if used_chips:
-            print(f"DEBUG: {manager['player_name']} used chips: {used_chips}")
-        else:
-            print(f"DEBUG: {manager['player_name']} has no chips recorded in API data")
 
         # Determine available chips (first-half chips only)
         # FPL API chip names: 'bboost', '3xc', 'wildcard', 'freehit'
