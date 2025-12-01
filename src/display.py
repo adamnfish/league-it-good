@@ -26,11 +26,12 @@ def format_gameweek_summary(
     position_leaders: Dict[str, Dict[str, Any]],
     chip_usage: Dict[str, List[str]],
     best_differential: Dict[str, Any],
-    transfer_stats: Optional[List[Dict[str, Any]]]
+    transfer_stats: Optional[List[Dict[str, Any]]],
+    chip_availability: Dict[str, List[str]]
 ) -> str:
     """
     Generate complete gameweek summary text.
-    
+
     Args:
         league_name: Name of the league
         gameweek: Gameweek number (1 - 38)
@@ -42,7 +43,8 @@ def format_gameweek_summary(
         chip_usage: Chip usage data
         best_differential: Differential pick analysis
         transfer_stats: Transfer analysis (None for GW1)
-    
+        chip_availability: Chip availability data
+
     Returns:
         str: Formatted summary text ready for WhatsApp
     """
@@ -112,7 +114,11 @@ def format_gameweek_summary(
         print(click.style("ℹ️  Transfer analysis not available for gameweek 1 - skipping 'WHEELER DEALER' section", fg='yellow'))
     elif not transfer_stats:
         print(click.style("ℹ️  No transfer data available - skipping 'WHEELER DEALER' section", fg='yellow'))
-    
+
+    # Chip availability
+    if chip_availability:
+        summary += format_chip_availability(chip_availability)
+
     return summary
 
 
@@ -458,6 +464,30 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
         print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in backup")
+
+
+def format_chip_availability(chip_data: Dict[str, List[str]]) -> str:
+    """
+    Format the chip availability section.
+
+    Args:
+        chip_data: Mapping of chip pattern to list of manager names
+
+    Returns:
+        str: Formatted chip availability section
+    """
+    output = "\n💳 *CHIP SHAPE*\n"
+
+    for pattern, managers in chip_data.items():
+        managers_str = ", ".join(managers)
+
+        # Special label for all chips available
+        if pattern == 'BB, TC, WC, FH':
+            output += f"All chips available: {managers_str}\n"
+        else:
+            output += f"{pattern}: {managers_str}\n"
+
+    return output
 
 
 def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None:

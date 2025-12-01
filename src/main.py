@@ -84,7 +84,11 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     if gameweek > 1:
         print("🔄 Analyzing transfers...")
         transfer_stats = analysis.analyze_transfers(standings, gameweek, bootstrap_data)
-    
+
+    # Analyze chip availability
+    print("🔄 Checking chip availability...")
+    chip_availability = analysis.analyze_chip_availability(standings)
+
     # Generate formatted summary
     summary = display.format_gameweek_summary(
         league_name=league_name,
@@ -96,7 +100,8 @@ def generate_summary(league_id: int, gameweek: int) -> str:
         position_leaders=bench_position_data['position_leaders'],
         chip_usage=chip_usage,
         best_differential=best_differential,
-        transfer_stats=transfer_stats
+        transfer_stats=transfer_stats,
+        chip_availability=chip_availability
     )
     
     return summary

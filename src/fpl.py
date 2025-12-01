@@ -204,20 +204,44 @@ def get_player_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     return "Unknown Player"
 
 
+def fetch_manager_entry(manager_id: int) -> Optional[Dict[Any, Any]]:
+    """
+    Fetch manager's entry data including chip history.
+
+    This endpoint provides overall manager information including which chips
+    have been used throughout the season. No caching since this changes frequently.
+
+    Args:
+        manager_id: Manager ID
+
+    Returns:
+        dict: Manager's entry data including 'chips' array, or None on error
+    """
+    url = f"https://fantasy.premierleague.com/api/entry/{manager_id}/"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching manager entry data: {e}")
+        return None
+
+
 def get_position_type(element_type: int) -> str:
     """
     Map FPL position types to our categories.
-    
+
     Args:
         element_type: FPL element type (1=GK, 2=DEF, 3=MID, 4=FWD)
-    
+
     Returns:
         str: Position category ('defence', 'midfield', 'attack', or 'unknown')
     """
     position_map = {
         1: 'defence',  # Goalkeeper counts as defence
         2: 'defence',
-        3: 'midfield', 
+        3: 'midfield',
         4: 'attack'
     }
     return position_map.get(element_type, 'unknown')

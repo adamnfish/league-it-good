@@ -350,3 +350,75 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
         'bench_stats': bench_stats,
         'position_leaders': position_leaders
     }
+
+
+def analyze_chip_availability(standings: list) -> Dict[str, List[str]]:
+    """
+    Analyze which chips each manager has available.
+
+    For the first half of the season, tracks availability of:
+    - Bench Boost (BB)
+    - Triple Captain (TC)
+    - Wildcard (WC)
+    - Free Hit (FH)
+
+    Args:
+        standings: League standings
+
+    Returns:
+        dict: Mapping of chip pattern to list of manager names
+              e.g., {'BB, TC, WC, FH': ['Manager1', 'Manager2'], 'BB, TC, FH': ['Manager3']}
+    """
+    # Track which chips each manager has available
+    manager_chips = {}
+
+    for manager in standings:
+        entry_data = fpl.fetch_manager_entry(manager['entry'])
+        if not entry_data:
+            continue
+
+        # Get list of chips already used
+        used_chips = set()
+        if 'chips' in entry_data:
+            for chip in entry_data['chips']:
+                chip_name = chip.get('name')
+                if chip_name:
+                    used_chips.add(chip_name)
+
+        # Determine available chips (first-half chips only)
+        # FPL API chip names: 'bboost', '3xc', 'wildcard', 'freehit'
+        available = []
+        if 'bboost' not in used_chips:
+            available.append('BB')
+        if '3xc' not in used_chips:
+            available.append('TC')
+        if 'wildcard' not in used_chips:
+            available.append('WC')
+        if 'freehit' not in used_chips:
+            available.append('FH')
+
+        # Create pattern key
+        if available:
+            pattern = ', '.join(available)
+        else:
+            pattern = 'All in'  # No chips available
+
+        if pattern not in manager_chips:
+            manager_chips[pattern] = []
+        manager_chips[pattern].append(manager['player_name'])
+
+    # Sort patterns: "All chips available" first, then by number of chips (descending), then "All in" last
+    def sort_key(item):
+        pattern = item[0]
+        if pattern == 'BB, TC, WC, FH':
+            return (0, '')  # First
+        elif pattern == 'All in':
+            return (2, '')  # Last
+        else:
+            # Count commas to estimate number of chips
+            chip_count = pattern.count(',') + 1
+            return (1, -chip_count, pattern)  # Middle, sorted by count desc, then alphabetically
+
+    sorted_chips = dict(sorted(manager_chips.items(), key=sort_key))
+
+    return sorted_chips
