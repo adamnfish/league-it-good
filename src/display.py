@@ -27,6 +27,7 @@ def format_gameweek_summary(
     chip_usage: Dict[str, List[str]],
     best_differential: Dict[str, Any],
     transfer_stats: Optional[List[Dict[str, Any]]],
+    chip_returns: Dict[str, List[Dict[str, Any]]],
     chip_availability: Dict[str, List[str]]
 ) -> str:
     """
@@ -43,6 +44,7 @@ def format_gameweek_summary(
         chip_usage: Chip usage data
         best_differential: Differential pick analysis
         transfer_stats: Transfer analysis (None for GW1)
+        chip_returns: Chip return analysis
         chip_availability: Chip availability data
 
     Returns:
@@ -114,6 +116,11 @@ def format_gameweek_summary(
         print(click.style("ℹ️  Transfer analysis not available for gameweek 1 - skipping 'WHEELER DEALER' section", fg='yellow'))
     elif not transfer_stats:
         print(click.style("ℹ️  No transfer data available - skipping 'WHEELER DEALER' section", fg='yellow'))
+
+    # Chip returns
+    chip_returns_text = format_chip_returns(chip_returns)
+    if chip_returns_text:
+        summary += chip_returns_text
 
     # Chip availability
     if chip_availability:
@@ -302,7 +309,20 @@ def format_transfer_analysis(transfer_stats: List[Dict[str, Any]], standings: li
         if no_transfer_managers:
             managers_str = ", ".join(no_transfer_managers)
             output += f"If it ain't broke...\n  {managers_str}\n"
-    
+
+        # Show free hit users
+        free_hit_managers = []
+        for manager in standings:
+            manager_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
+            if manager_data:
+                active_chip = manager_data.get('active_chip')
+                if active_chip == 'freehit':
+                    free_hit_managers.append(f"_{manager['player_name']}_ *(fh)*")
+
+        if free_hit_managers:
+            managers_str = ", ".join(free_hit_managers)
+            output += f"Free Hit:\n  {managers_str}\n"
+
     return output
 
 
@@ -464,6 +484,59 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
         print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in backup")
+
+
+def format_chip_returns(chip_returns: Dict[str, List[Dict[str, Any]]]) -> str:
+    """
+    Format the chip returns section.
+
+    Shows the points return for each chip used this gameweek,
+    grouped by chip type.
+
+    Args:
+        chip_returns: Chip return data from analyze_chip_returns()
+
+    Returns:
+        str: Formatted chip returns section
+    """
+    output = "\n🎲 *CHIP HAPPENS*\n"
+
+    # Track if any chips were used
+    any_chips_used = False
+
+    # Triple Captain
+    if chip_returns['triple_captain']:
+        any_chips_used = True
+        output += "\n*Triple Captain* 🎩\n"
+        for item in chip_returns['triple_captain']:
+            output += f"_{item['manager']}_ ({item['player']}): {item['points']} pts\n"
+
+    # Bench Boost
+    if chip_returns['bench_boost']:
+        any_chips_used = True
+        output += "\n*Bench Boost* 💪\n"
+        for item in chip_returns['bench_boost']:
+            output += f"_{item['manager']}_: {item['points']} pts\n"
+
+    # Wildcard
+    if chip_returns['wildcard']:
+        any_chips_used = True
+        output += "\n*Wildcard* 🃏\n"
+        for item in chip_returns['wildcard']:
+            output += f"_{item['manager']}_: {item['points']} pts from new players\n"
+
+    # Free Hit
+    if chip_returns['free_hit']:
+        any_chips_used = True
+        output += "\n*Free Hit* 🎯\n"
+        for item in chip_returns['free_hit']:
+            output += f"_{item['manager']}_: {item['points']} pts from new players\n"
+
+    # Return empty string if no chips were used
+    if not any_chips_used:
+        return ""
+
+    return output
 
 
 def format_chip_availability(chip_data: Dict[str, List[str]]) -> str:

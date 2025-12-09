@@ -423,3 +423,105 @@ def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[
     sorted_chips = dict(sorted(manager_chips.items(), key=sort_key))
 
     return sorted_chips
+
+
+def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Analyze the points return for each chip used this gameweek.
+
+    Calculates:
+    - Triple Captain: Captain's base points (the extra gain from 3x vs 2x)
+    - Bench Boost: Total bench points
+    - Wildcard: Points from new players
+    - Free Hit: Points from players in free hit team that weren't in previous team
+
+    Args:
+        standings: League standings
+        gameweek: Gameweek number
+        bootstrap_data: Bootstrap data for player lookups
+
+    Returns:
+        dict: Chip returns grouped by chip type
+    """
+    chip_returns = {
+        'triple_captain': [],
+        'bench_boost': [],
+        'wildcard': [],
+        'free_hit': []
+    }
+
+    for manager in standings:
+        manager_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
+        if not manager_data:
+            continue
+
+        active_chip = manager_data.get('active_chip')
+        if not active_chip:
+            continue
+
+        # Triple Captain
+        if active_chip == '3xc':
+            # Find the captain
+            for pick in manager_data['picks']:
+                if pick['multiplier'] >= 2:
+                    player_data = fpl.get_player_by_id(pick['element'], bootstrap_data)
+                    if player_data:
+                        chip_returns['triple_captain'].append({
+                            'manager': manager['player_name'],
+                            'player': fpl.get_player_name(pick['element'], bootstrap_data),
+                            'points': player_data['event_points']
+                        })
+                    break
+
+        # Bench Boost
+        elif active_chip == 'bboost':
+            bench_points = 0
+            for pick in manager_data['picks']:
+                # Bench positions are 12-15 for bench boost
+                if pick['position'] > 11:
+                    player_data = fpl.get_player_by_id(pick['element'], bootstrap_data)
+                    if player_data:
+                        bench_points += player_data['event_points']
+
+            chip_returns['bench_boost'].append({
+                'manager': manager['player_name'],
+                'points': bench_points
+            })
+
+        # Wildcard or Free Hit - need to compare with previous gameweek
+        elif active_chip in ['wildcard', 'freehit']:
+            if gameweek <= 1:
+                continue
+
+            previous_data = fpl.load_previous_gameweek_data(manager['entry'], gameweek)
+            if not previous_data:
+                continue
+
+            # Find new players
+            current_players = {pick['element'] for pick in manager_data['picks']}
+            previous_players = {pick['element'] for pick in previous_data['picks']}
+            new_players = current_players - previous_players
+
+            # Calculate points from new players (only counting starting XI)
+            new_player_points = 0
+            for player_id in new_players:
+                player_data = fpl.get_player_by_id(player_id, bootstrap_data)
+                if player_data:
+                    # Check if player was in starting XI (multiplier > 0)
+                    for pick in manager_data['picks']:
+                        if pick['element'] == player_id and pick['multiplier'] > 0:
+                            # Count points with multiplier (for captains)
+                            new_player_points += player_data['event_points'] * pick['multiplier']
+                            break
+
+            chip_type = 'wildcard' if active_chip == 'wildcard' else 'free_hit'
+            chip_returns[chip_type].append({
+                'manager': manager['player_name'],
+                'points': new_player_points
+            })
+
+    # Sort each chip type by points (descending)
+    for chip_type in chip_returns:
+        chip_returns[chip_type].sort(key=lambda x: x['points'], reverse=True)
+
+    return chip_returns
