@@ -425,7 +425,7 @@ def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[
     return sorted_chips
 
 
-def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, List[Dict[str, Any]]]:
+def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
     """
     Analyze the points return for each chip used this gameweek.
 
@@ -441,13 +441,19 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
         bootstrap_data: Bootstrap data for player lookups
 
     Returns:
-        dict: Chip returns grouped by chip type
+        dict: Contains 'chip_returns' (grouped by chip type) and 'skipped_managers' (managers skipped due to missing data)
     """
     chip_returns = {
         'triple_captain': [],
         'bench_boost': [],
         'wildcard': [],
         'free_hit': []
+    }
+
+    # Track managers skipped due to missing previous gameweek data
+    skipped_managers = {
+        'wildcard': [],
+        'freehit': []
     }
 
     for manager in standings:
@@ -495,6 +501,8 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
 
             previous_data = fpl.load_previous_gameweek_data(manager['entry'], gameweek)
             if not previous_data:
+                # Track that we skipped this manager due to missing data
+                skipped_managers[active_chip].append(manager['player_name'])
                 continue
 
             # Find new players
@@ -524,4 +532,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
     for chip_type in chip_returns:
         chip_returns[chip_type].sort(key=lambda x: x['points'], reverse=True)
 
-    return chip_returns
+    return {
+        'chip_returns': chip_returns,
+        'skipped_managers': skipped_managers
+    }

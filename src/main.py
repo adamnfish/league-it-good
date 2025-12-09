@@ -87,7 +87,7 @@ def generate_summary(league_id: int, gameweek: int) -> str:
 
     # Analyze chip returns
     print("🔄 Analyzing chip performance...")
-    chip_returns = analysis.analyze_chip_returns(standings, gameweek, bootstrap_data)
+    chip_returns_data = analysis.analyze_chip_returns(standings, gameweek, bootstrap_data)
 
     # Analyze chip availability
     print("🔄 Checking chip availability...")
@@ -105,7 +105,8 @@ def generate_summary(league_id: int, gameweek: int) -> str:
         chip_usage=chip_usage,
         best_differential=best_differential,
         transfer_stats=transfer_stats,
-        chip_returns=chip_returns,
+        chip_returns=chip_returns_data['chip_returns'],
+        chip_returns_skipped=chip_returns_data['skipped_managers'],
         chip_availability=chip_availability
     )
     

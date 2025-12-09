@@ -28,6 +28,7 @@ def format_gameweek_summary(
     best_differential: Dict[str, Any],
     transfer_stats: Optional[List[Dict[str, Any]]],
     chip_returns: Dict[str, List[Dict[str, Any]]],
+    chip_returns_skipped: Dict[str, List[str]],
     chip_availability: Dict[str, List[str]]
 ) -> str:
     """
@@ -45,6 +46,7 @@ def format_gameweek_summary(
         best_differential: Differential pick analysis
         transfer_stats: Transfer analysis (None for GW1)
         chip_returns: Chip return analysis
+        chip_returns_skipped: Managers skipped due to missing previous gameweek data
         chip_availability: Chip availability data
 
     Returns:
@@ -121,6 +123,21 @@ def format_gameweek_summary(
     chip_returns_text = format_chip_returns(chip_returns)
     if chip_returns_text:
         summary += chip_returns_text
+
+    # Warn about skipped managers due to missing previous gameweek data
+    total_skipped = sum(len(managers) for managers in chip_returns_skipped.values())
+    if total_skipped > 0:
+        skipped_details = []
+        if chip_returns_skipped['wildcard']:
+            managers_str = ", ".join(chip_returns_skipped['wildcard'])
+            skipped_details.append(f"Wildcard ({managers_str})")
+        if chip_returns_skipped['freehit']:
+            managers_str = ", ".join(chip_returns_skipped['freehit'])
+            skipped_details.append(f"Free Hit ({managers_str})")
+
+        details_str = "; ".join(skipped_details)
+        print(click.style(f"⚠️  Unable to calculate chip returns for {total_skipped} manager(s) - missing previous gameweek data", fg='yellow'))
+        print(click.style(f"    {details_str}", fg='cyan', dim=True))
 
     # Chip availability
     if chip_availability:
