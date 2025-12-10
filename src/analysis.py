@@ -108,36 +108,6 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
     return captain_choices
 
 
-def analyze_chip_usage(standings: list, gameweek: int) -> Dict[str, List[str]]:
-    """
-    Analyze chip usage for the gameweek.
-    
-    Args:
-        standings: League standings
-        gameweek: Gameweek number
-    
-    Returns:
-        dict: Mapping of chip type to list of manager names
-    """
-    chip_usage = {
-        'wildcard': [],
-        'freehit': [],
-        'bboost': [],  # Bench Boost
-        '3xc': []      # Triple Captain
-    }
-    
-    for manager in standings:
-        manager_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
-        if not manager_data:
-            continue
-        
-        active_chip = manager_data.get('active_chip')
-        if active_chip and active_chip in chip_usage:
-            chip_usage[active_chip].append(manager['player_name'])
-    
-    return chip_usage
-
-
 def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
     """
     Find the highest scoring player owned by only one manager (6+ points, no ties).

@@ -24,7 +24,6 @@ def format_gameweek_summary(
     captain_choices: Dict[str, Dict[str, Any]],
     bench_stats: List[Dict[str, Any]],
     position_leaders: Dict[str, Dict[str, Any]],
-    chip_usage: Dict[str, List[str]],
     best_differential: Dict[str, Any],
     transfer_stats: Optional[List[Dict[str, Any]]],
     chip_returns: Dict[str, List[Dict[str, Any]]],
@@ -42,7 +41,6 @@ def format_gameweek_summary(
         captain_choices: Captain analysis results
         bench_stats: Bench points analysis
         position_leaders: Best performers by position
-        chip_usage: Chip usage data
         best_differential: Differential pick analysis
         transfer_stats: Transfer analysis (None for GW1)
         chip_returns: Chip return analysis
@@ -93,13 +91,6 @@ def format_gameweek_summary(
     # Bench points
     if bench_stats:
         summary += format_bench_analysis(bench_stats)
-    
-    # Chip usage
-    chips_used = any(managers for managers in chip_usage.values())
-    if chips_used:
-        summary += format_chip_usage(chip_usage)
-    else:
-        print(click.style("ℹ️  No chips used this gameweek - skipping 'chips' section", fg='yellow'))
     
     # Best differential
     if best_differential['result']:
@@ -243,26 +234,6 @@ def format_bench_analysis(bench_stats: List[Dict[str, Any]]) -> str:
         output += " 💪"
     
     output += "\n"
-    
-    return output
-
-
-def format_chip_usage(chip_usage: Dict[str, List[str]]) -> str:
-    """Format the chip usage section."""
-    output = "\n🎰 *CHIP AWAY*\n"
-    
-    chip_names = {
-        'wildcard': 'Wildcard',
-        'freehit': 'Free Hit', 
-        'bboost': 'Bench Boost',
-        '3xc': 'Triple Captain'
-    }
-    
-    for chip_key, managers in chip_usage.items():
-        if managers:
-            chip_name = chip_names.get(chip_key, chip_key.title())
-            managers_str = ", ".join([f"_{manager}_" for manager in managers])
-            output += f"{chip_name}:\n  {managers_str}\n"
     
     return output
 

@@ -71,10 +71,6 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     print("🔄 Analyzing bench points and position stats...")
     bench_position_data = analysis.analyze_bench_and_positions(standings, gameweek, bootstrap_data)
     
-    # Analyze chip usage
-    print("🔄 Checking chip usage...")
-    chip_usage = analysis.analyze_chip_usage(standings, gameweek)
-    
     # Analyze differential picks
     print("🔄 Analyzing differential picks...")
     best_differential = analysis.analyze_best_differential(standings, gameweek, bootstrap_data)
@@ -102,7 +98,6 @@ def generate_summary(league_id: int, gameweek: int) -> str:
         captain_choices=captain_choices,
         bench_stats=bench_position_data['bench_stats'],
         position_leaders=bench_position_data['position_leaders'],
-        chip_usage=chip_usage,
         best_differential=best_differential,
         transfer_stats=transfer_stats,
         chip_returns=chip_returns_data['chip_returns'],
