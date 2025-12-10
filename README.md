@@ -40,13 +40,13 @@ This makes the `lig` and `league-it-good` commands available.
 
 ```bash
 # Generate gameweek summary
-lig --league-id YOUR_LEAGUE_ID --gameweek 1
+lig gen --league-id YOUR_LEAGUE_ID --gameweek 1
 
 # Or use the full name
-league-it-good --league-id YOUR_LEAGUE_ID --gameweek 1
+league-it-good gen --league-id YOUR_LEAGUE_ID --gameweek 1
 
 # List cached leagues and their available gameweeks
-lig --list-leagues
+lig list-leagues
 
 # Show help
 lig --help
@@ -61,7 +61,7 @@ The script generates:
 - Cached API responses in `~/.fpl-tools/cache/` for faster subsequent runs
 
 ### Administrative Commands
-- `--list-leagues` shows a comprehensive table of cached league data including:
+- `list-leagues` shows a comprehensive table of cached league data including:
   - League IDs and names
   - Number of teams in each league
   - Available gameweeks with missing weeks highlighted
