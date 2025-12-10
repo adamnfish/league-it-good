@@ -526,28 +526,28 @@ def format_chip_returns(chip_returns: Dict[str, List[Dict[str, Any]]]) -> str:
         any_chips_used = True
         output += "\n*Triple Captain* 🎩\n"
         for item in chip_returns['triple_captain']:
-            output += f"_{item['manager']}_ ({item['player']}): {item['points']} pts\n"
+            output += f"  _{item['manager']}_ ({item['player']}): {item['points']} pts\n"
 
     # Bench Boost
     if chip_returns['bench_boost']:
         any_chips_used = True
         output += "\n*Bench Boost* 💪\n"
         for item in chip_returns['bench_boost']:
-            output += f"_{item['manager']}_: {item['points']} pts\n"
+            output += f"  _{item['manager']}_: {item['points']} pts\n"
 
     # Wildcard
     if chip_returns['wildcard']:
         any_chips_used = True
         output += "\n*Wildcard* 🃏\n"
         for item in chip_returns['wildcard']:
-            output += f"_{item['manager']}_: {item['points']} pts from new players\n"
+            output += f"  _{item['manager']}_: {item['points']} pts from new players\n"
 
     # Free Hit
     if chip_returns['free_hit']:
         any_chips_used = True
         output += "\n*Free Hit* 🎯\n"
         for item in chip_returns['free_hit']:
-            output += f"_{item['manager']}_: {item['points']} pts from new players\n"
+            output += f"  _{item['manager']}_: {item['points']} pts from new players\n"
 
     # Return empty string if no chips were used
     if not any_chips_used:
