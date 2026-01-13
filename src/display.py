@@ -156,6 +156,7 @@ def get_standings_title(gameweek: int) -> str:
         16: "SWEET SIXTEEN",
         17: "DANCING QUEENS",
         18: "🔞",
+        19: "LIVIN' ON A PRAYER",
         20: "HINDSIGHT IS GAMEWEEK TWENTY",
         21: "21 SECONDS TO GO",
         38: "THE FINAL COUNTDOWN"
