@@ -12,10 +12,11 @@
   - Also created `lig describe` command for inspecting backup contents
 
 ### Data Fetching
-- [ ] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
-  - Support fetching specific league with `--league-id` and `--gameweek` parameters
+- [x] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
+  - Support fetching specific league with `--league-id` and `--gameweek` parameters (gameweek required)
   - Support fetching all cached leagues with `--all` flag (discovers leagues from existing cache)
   - Add `--force` flag to refresh cache even when data already exists
+  - Add `--dry-run` flag to preview what would be fetched
   - Display progress messages showing what's being fetched
   - Useful for:
     - Preloading data before going offline

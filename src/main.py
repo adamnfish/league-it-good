@@ -21,7 +21,7 @@ class GroupedCommands(click.Group):
         """Format commands into grouped sections."""
         # Define command groups
         command_groups = {
-            'FPL Commands': ['leagues', 'gen'],
+            'FPL Commands': ['leagues', 'gen', 'fetch'],
             'Backup Commands': ['backups', 'export', 'import', 'describe']
         }
 
@@ -158,6 +158,183 @@ def gen(league_id, gameweek):
     # Save to file
     output_file = storage.save_summary(summary, league_id, gameweek)
     print(f"\n💾 Summary saved to '{output_file}'")
+
+
+@cli.command()
+@click.option('--league-id', '-l', type=int, help='FPL league ID to fetch')
+@click.option('--gameweek', '-g', type=int, required=True, help='Gameweek number')
+@click.option('--all', is_flag=True, help='Fetch for all cached leagues')
+@click.option('--force', is_flag=True, help='Re-fetch even if data exists')
+@click.option('--dry-run', is_flag=True, help='Show what would be fetched without making API calls')
+def fetch(league_id, gameweek, all, force, dry_run):
+    """Preload/refresh cache data without generating summary output.
+
+    Useful for warming the cache before going offline, refreshing stale data,
+    or testing API connectivity.
+
+    Examples:
+      lig fetch --league-id 123456 --gameweek 21
+      lig fetch --gameweek 21 --all
+      lig fetch --league-id 123456 --gameweek 21 --force
+    """
+    # Validate parameters
+    if league_id and all:
+        print("❌ Error: Cannot use both --league-id and --all")
+        return
+
+    if not league_id and not all:
+        print("❌ Error: Must specify either --league-id or --all")
+        return
+
+    # Validate gameweek range
+    if not (1 <= gameweek <= 38):
+        print(f"❌ Error: Gameweek must be between 1 and 38 (got {gameweek})")
+        return
+
+    if dry_run:
+        print("🔍 DRY RUN: No files will be fetched\n")
+
+    print(f"🔄 Fetching data for Gameweek {gameweek}...\n")
+
+    # Determine target leagues
+    if all:
+        league_data = storage.get_cached_league_data()
+        if not league_data:
+            print("❌ Error: No cached leagues found")
+            return
+        league_ids = list(league_data.keys())
+        print(f"📊 Found {len(league_ids)} cached league(s)")
+    else:
+        league_ids = [league_id]
+
+    # Track statistics
+    total_files_fetched = 0
+    total_files_skipped = 0
+    failed_fetches = []
+
+    # Fetch bootstrap data (once, shared across all leagues)
+    bootstrap_path = storage.get_cache_path(gameweek, "bootstrap")
+    if not dry_run and (force or not storage.cache_exists(bootstrap_path)):
+        try:
+            print("📊 Bootstrap data")
+            fpl.fetch_bootstrap_data(gameweek)
+            total_files_fetched += 1
+            print("  ✓ Fetched bootstrap.json\n")
+        except Exception as e:
+            print(f"  ❌ Failed to fetch bootstrap: {e}\n")
+            failed_fetches.append(("bootstrap", str(e)))
+    elif dry_run:
+        exists = storage.cache_exists(bootstrap_path)
+        status = "exists, would skip" if exists and not force else "would fetch"
+        print(f"📊 Bootstrap data ({status})\n")
+    else:
+        total_files_skipped += 1
+        print("📊 Bootstrap data (cached)\n")
+
+    # Fetch each league
+    for idx, lid in enumerate(league_ids, 1):
+        try:
+            # Fetch league standings
+            league_path = storage.get_cache_path(gameweek, "league", league_id=lid)
+
+            if dry_run:
+                exists = storage.cache_exists(league_path)
+                status = "exists, would skip" if exists and not force else "would fetch"
+                print(f"📊 League ID: {lid} ({status})")
+            elif force or not storage.cache_exists(league_path):
+                league_data = fpl.fetch_league_standings(lid, gameweek)
+                if not league_data:
+                    print(f"❌ League {lid}: Failed to fetch standings\n")
+                    failed_fetches.append((f"league_{lid}", "Failed to fetch standings"))
+                    continue
+
+                league_name = league_data['league']['name']
+                manager_count = len(league_data['standings']['results'])
+                print(f"📊 League: {league_name} (ID: {lid})")
+                print(f"  ✓ Fetched league standings ({manager_count} managers)")
+                total_files_fetched += 1
+            else:
+                # Load from cache to get league name and manager count
+                league_data = storage.load_from_cache(league_path)
+                if league_data:
+                    league_name = league_data['league']['name']
+                    manager_count = len(league_data['standings']['results'])
+                    print(f"📊 League: {league_name} (ID: {lid}) (cached)")
+                    print(f"  • {manager_count} managers")
+                    total_files_skipped += 1
+                else:
+                    print(f"📊 League ID: {lid} (cached)")
+                    # Still need to fetch to get manager list
+                    league_data = fpl.fetch_league_standings(lid, gameweek)
+                    manager_count = len(league_data['standings']['results'])
+                    total_files_fetched += 1
+
+            if not dry_run:
+                # Get manager list from league standings
+                managers = league_data['standings']['results']
+
+                # Fetch manager data
+                print(f"  🔄 Fetching manager data...")
+                manager_fetched = 0
+                manager_skipped = 0
+
+                for manager in managers:
+                    manager_id = manager['entry']
+
+                    # Fetch manager gameweek picks
+                    manager_path = storage.get_cache_path(gameweek, "manager", manager_id=manager_id)
+                    if force or not storage.cache_exists(manager_path):
+                        try:
+                            fpl.fetch_manager_gameweek(manager_id, gameweek)
+                            manager_fetched += 1
+                        except Exception as e:
+                            failed_fetches.append((f"manager_{manager_id}_picks", str(e)))
+                    else:
+                        manager_skipped += 1
+
+                    # Fetch manager history
+                    history_path = storage.get_cache_path(gameweek, "history", manager_id=manager_id)
+                    if force or not storage.cache_exists(history_path):
+                        try:
+                            fpl.fetch_manager_history(manager_id, gameweek)
+                            manager_fetched += 1
+                        except Exception as e:
+                            failed_fetches.append((f"manager_{manager_id}_history", str(e)))
+                    else:
+                        manager_skipped += 1
+
+                total_files_fetched += manager_fetched
+                total_files_skipped += manager_skipped
+
+                if manager_fetched > 0:
+                    print(f"  ✓ {manager_fetched} file(s) fetched")
+                if manager_skipped > 0:
+                    print(f"  • {manager_skipped} file(s) skipped (already cached)")
+
+            print()  # Blank line between leagues
+
+        except Exception as e:
+            print(f"❌ League {lid}: {e}\n")
+            failed_fetches.append((f"league_{lid}", str(e)))
+
+    # Summary
+    print("="*50)
+    if dry_run:
+        print("🔍 Dry run complete - no files were fetched")
+    else:
+        print("✅ Fetch complete")
+        print(f"  • {len(league_ids)} league(s)")
+        print(f"  • {total_files_fetched} file(s) fetched")
+        if total_files_skipped > 0:
+            print(f"  • {total_files_skipped} file(s) skipped (use --force to refresh existing)")
+
+    # Show failures if any
+    if failed_fetches:
+        print(f"\n⚠️  Some fetches failed:")
+        for item, error in failed_fetches[:5]:  # Show first 5 failures
+            print(f"  • {item}: {error}")
+        if len(failed_fetches) > 5:
+            print(f"  ... and {len(failed_fetches) - 5} more")
 
 
 @cli.command('leagues')

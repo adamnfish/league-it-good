@@ -120,13 +120,26 @@ def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = No
     raise ValueError(f"Unknown cache type: {cache_type}")
 
 
+def cache_exists(cache_path: str) -> bool:
+    """
+    Check if a cache file exists.
+
+    Args:
+        cache_path: Path to cache file
+
+    Returns:
+        bool: True if cache file exists, False otherwise
+    """
+    return os.path.exists(cache_path)
+
+
 def load_from_cache(cache_path: str) -> Optional[Dict[Any, Any]]:
     """
     Load data from cache if it exists.
-    
+
     Args:
         cache_path: Path to cache file
-    
+
     Returns:
         dict: Cached data, or None if cache doesn't exist or is invalid
     """
