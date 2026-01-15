@@ -19,39 +19,64 @@ from typing import Dict, List, Optional, Any, Set, Tuple
 from . import fpl
 
 
+def calculate_proper_ranks(standings: list) -> Dict[int, int]:
+    """
+    Calculate proper ranks handling ties based on total points.
+
+    When managers have the same total, they get the same rank.
+    After a tie, skip ranks (e.g., if 2 people are rank 2, next is rank 4).
+
+    Args:
+        standings: List of manager standings (must be sorted by total desc)
+
+    Returns:
+        dict: Mapping of manager entry ID to proper rank
+    """
+    proper_ranks = {}
+    current_rank = 1
+    for i, manager in enumerate(standings):
+        if i > 0 and manager['total'] == standings[i - 1]['total']:
+            # Tied with previous manager - use same rank
+            proper_ranks[manager['entry']] = proper_ranks[standings[i - 1]['entry']]
+        else:
+            # New rank - use current position (which accounts for ties)
+            proper_ranks[manager['entry']] = current_rank
+        current_rank += 1
+    return proper_ranks
+
+
 def calculate_position_changes(current_standings: list, previous_standings: Optional[list]) -> Dict[int, Optional[int]]:
     """
     Calculate position changes between gameweeks.
-    
+
     Args:
         current_standings: Current gameweek standings
         previous_standings: Previous gameweek standings, or None
-    
+
     Returns:
         dict: Mapping of manager ID to position change
             Positive = moved up, Negative = moved down, None = new manager
     """
     if not previous_standings:
         return {}
-    
-    # Create mapping of manager ID to previous position
-    previous_positions = {}
-    for manager in previous_standings:
-        previous_positions[manager['entry']] = manager['rank']
-    
+
+    # Calculate proper tie-aware ranks for both current and previous gameweeks
+    current_ranks = calculate_proper_ranks(current_standings)
+    previous_ranks = calculate_proper_ranks(previous_standings)
+
     # Calculate changes
     position_changes = {}
     for manager in current_standings:
         manager_id = manager['entry']
-        current_pos = manager['rank']
-        previous_pos = previous_positions.get(manager_id)
-        
+        current_pos = current_ranks[manager_id]
+        previous_pos = previous_ranks.get(manager_id)
+
         if previous_pos is not None:
             change = previous_pos - current_pos  # Positive = moved up, Negative = moved down
             position_changes[manager_id] = change
         else:
             position_changes[manager_id] = None  # New manager
-    
+
     return position_changes
 
 

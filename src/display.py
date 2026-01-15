@@ -167,10 +167,18 @@ def get_standings_title(gameweek: int) -> str:
 def format_league_standings(standings: list, position_changes: Dict[int, Optional[int]],
                             highest_ids: List[int], lowest_id: int, gameweek: int) -> str:
     """Format the league standings table."""
+    from . import analysis
+
     title = get_standings_title(gameweek)
     output = f"📊 *{title}*\n"
 
+    # Calculate proper ranks handling ties
+    proper_ranks = analysis.calculate_proper_ranks(standings)
+
     for manager in standings:
+        # Use calculated rank instead of API rank
+        rank = proper_ranks[manager['entry']]
+
         # Format position change
         change = position_changes.get(manager['entry'])
         if change is None:
@@ -188,12 +196,12 @@ def format_league_standings(standings: list, position_changes: Dict[int, Optiona
             awards = " ⭐"
         elif manager['entry'] == lowest_id:
             awards = " 💩"
-        
+
         # Two-line format
         gw_points = manager['event_total']
-        output += f"{manager['rank']}. {change_str}{manager['player_name']} - {manager['total']} pts (+{gw_points})\n"
+        output += f"{rank}. {change_str}{manager['player_name']} - {manager['total']} pts (+{gw_points})\n"
         output += f"      {manager['entry_name']}{awards}\n"
-    
+
     return output
 
 

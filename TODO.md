@@ -3,12 +3,13 @@
 ## Phase 0: Immediate Fixes & CLI Improvements
 
 ### Command Restructuring
-- [ ] **Split backup command** - Refactor the current `backup` command into separate `export` and `import` commands for better CLI usability
+- [x] **Split backup command** - Refactor the current `backup` command into separate `export` and `import` commands for better CLI usability
   - `lig export` - Export cache to backup file with optional custom path, defaults to timestamped filename
   - `lig import` - Import missing gameweeks from backup, resolves filename from backups directory or accepts full path with `--file` flag
   - Keep `--dry-run` flag for import command
   - Both commands should maintain current functionality from the unified backup command
   - Update help text and documentation accordingly
+  - Also created `lig describe` command for inspecting backup contents
 
 ### Data Fetching
 - [ ] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
@@ -23,14 +24,14 @@
     - Testing API connectivity
 
 ### Analysis Bug Fixes
-- [ ] **Handle ties in overall league positions** - When multiple managers have the same total points, they should be displayed with tied rankings
+- [x] **Handle ties in overall league positions** - When multiple managers have the same total points, they should be displayed with tied rankings
   - Currently: Using `manager['rank']` from FPL API which assigns sequential ranks (1, 2, 3, 4...) even when there are ties
   - Example bug: Two managers with 1169 pts show as ranks 2 and 3 instead of both being rank 2
   - Solution: Calculate proper ranks based on `total` field in standings
   - When managers are tied, they should have the same rank
   - After a tie, skip ranks appropriately (if 2 people tied at rank 2, next person is rank 4, not 3)
   - Update `format_league_standings()` in `src/display.py` line 194
-  - Reproducible with: league 2398000, gameweek 21
+  - **COMPLETED**: Created `calculate_proper_ranks()` helper function in analysis.py, updated both display and position change calculations
 
 - [ ] **Handle ties in gameweek rankings** - When multiple managers have the same gameweek score, they should be displayed with tied rankings
   - Currently: Ties are already handled for the gameweek winner display (lines 69-74 in display.py)
