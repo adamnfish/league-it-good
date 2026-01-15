@@ -1,4 +1,58 @@
-# FPL Tools - TODO List
+# League it Good - TODO List
+
+## Phase 0: Immediate Fixes & CLI Improvements
+
+### Command Restructuring
+- [ ] **Split backup command** - Refactor the current `backup` command into separate `export` and `import` commands for better CLI usability
+  - `lig export` - Export cache to backup file with optional custom path, defaults to timestamped filename
+  - `lig import` - Import missing gameweeks from backup, resolves filename from backups directory or accepts full path with `--file` flag
+  - Keep `--dry-run` flag for import command
+  - Both commands should maintain current functionality from the unified backup command
+  - Update help text and documentation accordingly
+
+### Data Fetching
+- [ ] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
+  - Support fetching specific league with `--league-id` and `--gameweek` parameters
+  - Support fetching all cached leagues with `--all` flag (discovers leagues from existing cache)
+  - Add `--force` flag to refresh cache even when data already exists
+  - Display progress messages showing what's being fetched
+  - Useful for:
+    - Preloading data before going offline
+    - Refreshing stale cache data
+    - Warming cache for multiple leagues at once
+    - Testing API connectivity
+
+### Analysis Bug Fixes
+- [ ] **Handle ties in overall league positions** - When multiple managers have the same total points, they should be displayed with tied rankings
+  - Currently: Using `manager['rank']` from FPL API which assigns sequential ranks (1, 2, 3, 4...) even when there are ties
+  - Example bug: Two managers with 1169 pts show as ranks 2 and 3 instead of both being rank 2
+  - Solution: Calculate proper ranks based on `total` field in standings
+  - When managers are tied, they should have the same rank
+  - After a tie, skip ranks appropriately (if 2 people tied at rank 2, next person is rank 4, not 3)
+  - Update `format_league_standings()` in `src/display.py` line 194
+  - Reproducible with: league 2398000, gameweek 21
+
+- [ ] **Handle ties in gameweek rankings** - When multiple managers have the same gameweek score, they should be displayed with tied rankings
+  - Currently: Ties are already handled for the gameweek winner display (lines 69-74 in display.py)
+  - Verify wooden spoon handling also works correctly with ties
+  - Update the gameweek summary section in `src/display.py` if needed
+
+- [ ] **Fix transfer analysis after Free Hit** - When analyzing transfers, handle the Free Hit chip edge case properly
+  - Currently: After a Free Hit week, all players appear as "new transfers" because the squad reverts to pre-Free Hit state
+  - Solution: When previous gameweek was a Free Hit, compare against gameweek N-2 instead of N-1 for transfer tracking
+  - Check the `active_chip` field in previous gameweek data to detect Free Hit usage
+  - Add logic to `analyze_transfers()` function in `src/analysis.py`
+  - Consider adding a note in transfer section when this occurs (e.g., "Transfer comparison vs GW N-2 due to Free Hit in GW N-1")
+  - Add console warning if N-2 week data is not available in cache (e.g., analyzing GW3 after a Free Hit in GW2, but no GW1 data cached)
+
+### Chip Display Enhancements
+- [ ] **Fix chip availability tracking** - Update chip availability section to handle chip replenishment at halfway point
+  - FPL replenishes all chips at the halfway point of the season (after GW19 in 2024/25)
+  - Current implementation may not correctly handle this replenishment
+  - Investigate the FPL API data structure to understand how replenished chips are tracked
+  - Update the chip availability analysis to accurately show which chips are available after replenishment
+  - May need to check both the chip usage history and some indicator of chip grants/replenishments
+  - Display appropriately in the "Available chips" section being added (see Phase 2 chip features)
 
 ## Phase 1: Configuration & Cleanup
 
