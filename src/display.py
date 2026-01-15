@@ -595,5 +595,5 @@ def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None
 
     # Usage note
     filename_placeholder = click.style('<filename>', fg='cyan')
-    print(f"\nTo inspect a backup: lig backup -d {filename_placeholder}")
-    print(f"To import from backup: lig backup -i {filename_placeholder} [--dry-run]")
+    print(f"\nTo inspect a backup: lig describe {filename_placeholder}")
+    print(f"To import from backup: lig import {filename_placeholder} [--dry-run]")

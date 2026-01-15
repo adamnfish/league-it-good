@@ -14,7 +14,44 @@ import click
 from . import storage, fpl, analysis, display
 
 
-@click.group(invoke_without_command=True, context_settings={'help_option_names': ['-h', '--help']})
+class GroupedCommands(click.Group):
+    """Custom Click Group that organizes commands into sections."""
+
+    def format_commands(self, ctx, formatter):
+        """Format commands into grouped sections."""
+        # Define command groups
+        command_groups = {
+            'FPL Commands': ['leagues', 'gen'],
+            'Backup Commands': ['backups', 'export', 'import', 'describe']
+        }
+
+        # Get all commands
+        commands = []
+        for subcommand in self.list_commands(ctx):
+            cmd = self.get_command(ctx, subcommand)
+            if cmd is None:
+                continue
+            if cmd.hidden:
+                continue
+            commands.append((subcommand, cmd))
+
+        # If no commands, nothing to format
+        if not commands:
+            return
+
+        # Format each group
+        for group_name, group_commands in command_groups.items():
+            # Filter commands for this group
+            group_items = [(name, cmd) for name, cmd in commands if name in group_commands]
+            if not group_items:
+                continue
+
+            with formatter.section(group_name):
+                formatter.write_dl([(name, cmd.get_short_help_str(limit=formatter.width))
+                                   for name, cmd in group_items])
+
+
+@click.group(cls=GroupedCommands, invoke_without_command=True, context_settings={'help_option_names': ['-h', '--help']})
 @click.pass_context
 def cli(ctx):
     """
@@ -123,15 +160,15 @@ def gen(league_id, gameweek):
     print(f"\n💾 Summary saved to '{output_file}'")
 
 
-@cli.command('list-leagues')
-def list_leagues_cmd():
+@cli.command('leagues')
+def leagues_cmd():
     """List all cached league IDs and their available gameweeks."""
     league_data = storage.get_cached_league_data()
     display.format_admin_table(league_data)
 
 
-@cli.command('list-backups')
-def list_backups_cmd():
+@cli.command('backups')
+def backups_cmd():
     """List all backup files in the backups directory."""
     backups = storage.list_backups()
     backups_dir = storage.get_backups_dir()
@@ -139,115 +176,119 @@ def list_backups_cmd():
 
 
 @cli.command()
-@click.option('--export', '-e', 'export_path', is_flag=False, flag_value='', default=None,
-              help='Export cache to backup file (optionally specify path)')
-@click.option('--import', '-i', 'import_name', type=str, default=None,
-              help='Import missing gameweeks from backup')
-@click.option('--describe', '-d', 'describe_name', type=str, default=None,
-              help='Show information about a backup')
+@click.argument('path', required=False, default=None)
+def export(path):
+    """Export cache to a backup archive file.
+
+    Creates a timestamped backup archive in the backups directory by default.
+    Optionally specify a custom path for the backup file.
+
+    Examples:
+      lig export                    # Create timestamped backup in backups directory
+      lig export /path/to/backup.tar.gz  # Create backup at custom path
+    """
+    try:
+        print("📦 Creating backup...")
+        backup_path = storage.export_backup(path)
+        print(f"✓ Backup created: {backup_path}")
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+    except Exception as e:
+        print(f"❌ Failed to create backup: {e}")
+
+
+@cli.command('import')
+@click.argument('backup_name', required=True)
 @click.option('--file', '-f', 'use_full_path', is_flag=True,
               help='Treat argument as full path instead of filename in backups directory')
 @click.option('--dry-run', is_flag=True,
-              help='Show what would be imported without making changes (import only)')
-def backup(export_path, import_name, describe_name, use_full_path, dry_run):
-    """Manage backup archives (export, import, or describe)."""
+              help='Show what would be imported without making changes')
+def import_backup_cmd(backup_name, use_full_path, dry_run):
+    """Import missing gameweeks from a backup archive.
 
-    # Determine if export was requested (None = not requested, '' = requested with default, other = custom path)
-    export_requested = export_path is not None
+    By default, looks for the backup file in the backups directory by name.
+    Use --file to specify a full path to the backup archive.
 
-    # Normalize export_path: empty string means use default (None to storage.export_backup)
-    if export_path == '':
-        export_path = None
+    Only imports gameweeks that don't already exist in your local cache.
+    Creates a safety backup of your current cache before importing.
 
-    # Count how many operations were requested
-    operations = sum([export_requested, import_name is not None, describe_name is not None])
+    Examples:
+      lig import backup-2025-01-15.tar.gz       # Import from backups directory
+      lig import backup-2025-01-15.tar.gz --dry-run  # Preview without importing
+      lig import /path/to/backup.tar.gz --file  # Import from custom path
+    """
+    # Resolve backup path based on --file flag
+    backup_path = backup_name if use_full_path else storage.resolve_backup_name(backup_name)
 
-    if operations == 0:
-        print("❌ Error: Must specify one of --export, --import, or --describe")
-        print("Use 'lig backup --help' for usage information")
-        return
+    try:
+        if dry_run:
+            print("DRY RUN: No changes will be made\n")
+            print(f"Would import from backup:\n{backup_path}\n")
+        else:
+            print(f"Importing from backup:\n{backup_path}\n")
 
-    if operations > 1:
-        print("❌ Error: Cannot use --export, --import, and --describe together")
-        print("Please specify only one operation")
-        return
+        # Perform import (or dry-run)
+        import_result = storage.import_backup(backup_path, dry_run=dry_run)
 
-    # Export operation
-    if export_requested:
-        try:
-            print("📦 Creating backup...")
-            backup_path = storage.export_backup(export_path if export_path else None)
-            print(f"✓ Backup created: {backup_path}")
-        except FileNotFoundError as e:
-            print(f"❌ Error: {e}")
-        except Exception as e:
-            print(f"❌ Failed to create backup: {e}")
-        return
+        # Get league metadata from archive for display
+        league_data = storage.describe_backup(backup_path)
 
-    # Describe operation
-    if describe_name:
-        # Resolve backup path based on --file flag
-        backup_path = describe_name if use_full_path else storage.resolve_backup_name(describe_name)
+        # Show safety backup info (if created)
+        if import_result['safety_backup'] and not dry_run:
+            print(f"Created safety backup: {import_result['safety_backup']}\n")
 
-        try:
-            # Read and display metadata
-            metadata = storage.read_backup_metadata(backup_path)
-            print(f"Backup Archive: {backup_path}")
-            print(f"Exported: {metadata.get('export_date', 'Unknown')}")
-            print(f"Tool Version: {metadata.get('tool_version', 'Unknown')}")
-            print()
+        # Display import table
+        display.format_import_table(league_data, import_result['league_status'])
 
-            # Display league data using existing format
-            league_data = storage.describe_backup(backup_path)
-            display.format_admin_table(league_data)
-        except FileNotFoundError as e:
-            print(f"❌ Error: {e}")
-        except Exception as e:
-            print(f"❌ Failed to describe backup: {e}")
-        return
+        # Show summary
+        print()
+        if dry_run:
+            print("Summary:")
+            print(f"↓ Would import: {import_result['total_imported']} league/gameweek combinations")
+            print(f"- Would skip: {import_result['total_skipped']} combinations (already exist)")
+            print("\nRun without --dry-run to perform import")
+        else:
+            print("Summary:")
+            print(f"↓ Total imported: {import_result['total_imported']} league/gameweek combinations ({import_result['file_count']} files)")
+            print(f"- Total skipped: {import_result['total_skipped']} combinations (already exist)")
 
-    # Import operation
-    if import_name:
-        # Resolve backup path based on --file flag
-        backup_path = import_name if use_full_path else storage.resolve_backup_name(import_name)
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+    except Exception as e:
+        print(f"❌ Failed to import backup: {e}")
 
-        try:
-            if dry_run:
-                print("DRY RUN: No changes will be made\n")
-                print(f"Would import from backup:\n{backup_path}\n")
-            else:
-                print(f"Importing from backup:\n{backup_path}\n")
 
-            # Perform import (or dry-run)
-            import_result = storage.import_backup(backup_path, dry_run=dry_run)
+@cli.command()
+@click.argument('backup_name', required=True)
+@click.option('--file', '-f', 'use_full_path', is_flag=True,
+              help='Treat argument as full path instead of filename in backups directory')
+def describe(backup_name, use_full_path):
+    """Show information about a backup archive.
 
-            # Get league metadata from archive for display
-            league_data = storage.describe_backup(backup_path)
+    Displays metadata and league/gameweek contents of a backup file.
 
-            # Show safety backup info (if created)
-            if import_result['safety_backup'] and not dry_run:
-                print(f"Created safety backup: {import_result['safety_backup']}\n")
+    Examples:
+      lig describe backup-2025-01-15.tar.gz       # Describe backup in backups directory
+      lig describe /path/to/backup.tar.gz --file  # Describe backup at custom path
+    """
+    # Resolve backup path based on --file flag
+    backup_path = backup_name if use_full_path else storage.resolve_backup_name(backup_name)
 
-            # Display import table
-            display.format_import_table(league_data, import_result['league_status'])
+    try:
+        # Read and display metadata
+        metadata = storage.read_backup_metadata(backup_path)
+        print(f"Backup Archive: {backup_path}")
+        print(f"Exported: {metadata.get('export_date', 'Unknown')}")
+        print(f"Tool Version: {metadata.get('tool_version', 'Unknown')}")
+        print()
 
-            # Show summary
-            print()
-            if dry_run:
-                print("Summary:")
-                print(f"↓ Would import: {import_result['total_imported']} league/gameweek combinations")
-                print(f"- Would skip: {import_result['total_skipped']} combinations (already exist)")
-                print("\nRun without --dry-run to perform import")
-            else:
-                print("Summary:")
-                print(f"↓ Total imported: {import_result['total_imported']} league/gameweek combinations ({import_result['file_count']} files)")
-                print(f"- Total skipped: {import_result['total_skipped']} combinations (already exist)")
-
-        except FileNotFoundError as e:
-            print(f"❌ Error: {e}")
-        except Exception as e:
-            print(f"❌ Failed to import backup: {e}")
-        return
+        # Display league data using existing format
+        league_data = storage.describe_backup(backup_path)
+        display.format_admin_table(league_data)
+    except FileNotFoundError as e:
+        print(f"❌ Error: {e}")
+    except Exception as e:
+        print(f"❌ Failed to describe backup: {e}")
 
 
 if __name__ == "__main__":

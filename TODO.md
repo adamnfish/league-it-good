@@ -107,7 +107,7 @@
 - [x] **League-specific output files** - Parameterize filenames with league ID to prevent overwriting
 - [x] **User feedback** - Add logging to the summary generation to describe clarify why sections are skipped
 - [x] **Restructure application** - Separate modules for FPL / cache / main / display (✨ **COMPLETED!** See REFACTORING.md)
-- [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `--list-leagues` command
+- [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `leagues` command
 - [ ] **Single data fetch** - Let's fetch the gameweek data we need once up front, and pass this around the program while it runs, rather than have each feature independently lookup the gameweek/manager data
 - [ ] **Remove legacy entry point** - The gameweek.py file is now deprecated, let's remove it and update all the usage docs
 
