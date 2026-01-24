@@ -98,6 +98,26 @@
 - [x] **Bench boost** - Managers that played their bench boost should get a callout in the bench press section, displaying the points they got for this chip
 - [ ] **Available chips** - add a new section that displays the chips each manager has available to them. Let's have an icon for each chip, and display the icon (or a cross) before each manager's name
 
+### Performance Tracking
+
+- [ ] **Consistency Awards** - Track variance/standard deviation across recent gameweeks to award "Mr. Reliable" (most consistent) vs "Boom or Bust" (highest variance)
+  - Calculate standard deviation of gameweek scores over last 5-10 gameweeks
+  - Display in a new section showing most/least consistent performers
+  - Could use emojis like 📊 for consistent, 🎢 for volatile
+  - Requires multiple gameweeks of cached data to be meaningful
+
+- [ ] **Mini Streaks** - Track and callout winning/losing streaks
+  - Identify managers on hot/cold streaks (e.g., "3 weeks in top 3" or "4 weeks below average")
+  - Could display in existing sections or as standalone "ON FIRE/STRUGGLING" callouts
+  - Track both performance streaks (top scorer) and position streaks (moving up/down)
+  - Requires comparison across 3+ gameweeks
+
+- [ ] **Auto-subs Tracking** - Show who benefited most from automatic substitutions
+  - New "LUCKY BREAK" section showing managers who gained points from auto-subs
+  - Compare starting XI to actual points scored (accounting for non-playing players)
+  - Calculate difference between intended lineup and actual points from auto-subs
+  - Show biggest gainers from the auto-sub system
+
 ### Messaging
 
 - [ ] **Gameweek-based table title** - The main table title gets manually changed every week, let's bring that into the logic so the display uses the selected gameweek to decide which title to use
