@@ -190,11 +190,11 @@ def get_player_by_id(player_id: int, bootstrap_data: Dict[Any, Any]) -> Optional
 def get_player_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     """
     Get player name from ID using bootstrap data.
-    
+
     Args:
         player_id: Player ID
         bootstrap_data: Bootstrap data containing all players
-    
+
     Returns:
         str: Player's full name, or "Unknown Player" if not found
     """
@@ -202,6 +202,23 @@ def get_player_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     if player:
         return f"{player['first_name']} {player['second_name']}"
     return "Unknown Player"
+
+
+def get_team_name(team_id: int, bootstrap_data: Dict[Any, Any]) -> str:
+    """
+    Get team name from team ID using bootstrap data.
+
+    Args:
+        team_id: Team ID
+        bootstrap_data: Bootstrap data containing all teams
+
+    Returns:
+        str: Team name, or "Unknown Team" if not found
+    """
+    for team in bootstrap_data['teams']:
+        if team['id'] == team_id:
+            return team['name']
+    return "Unknown Team"
 
 
 def fetch_manager_history(manager_id: int, gameweek: int) -> Optional[Dict[Any, Any]]:

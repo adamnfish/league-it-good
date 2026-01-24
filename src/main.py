@@ -111,7 +111,11 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     # Analyze differential picks
     print("🔄 Analyzing differential picks...")
     best_differential = analysis.analyze_best_differential(standings, gameweek, bootstrap_data)
-    
+
+    # Analyze team overload violations
+    print("🔄 Checking team overload violations...")
+    team_overload = analysis.analyze_team_overload(standings, gameweek, bootstrap_data)
+
     # Analyze transfers (if applicable)
     transfer_stats = None
     if gameweek > 1:
@@ -136,6 +140,7 @@ def generate_summary(league_id: int, gameweek: int) -> str:
         bench_stats=bench_position_data['bench_stats'],
         position_leaders=bench_position_data['position_leaders'],
         best_differential=best_differential,
+        team_overload=team_overload,
         transfer_stats=transfer_stats,
         chip_returns=chip_returns_data['chip_returns'],
         chip_returns_skipped=chip_returns_data['skipped_managers'],

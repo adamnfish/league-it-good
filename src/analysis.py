@@ -476,6 +476,53 @@ def analyze_chip_availability(standings: list, gameweek: int, bootstrap_data: Di
     return sorted_chips
 
 
+def analyze_team_overload(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> List[Dict[str, Any]]:
+    """
+    Detect managers with more than 3 players from the same team.
+
+    FPL rules limit teams to max 3 players from any single club.
+    This can be violated when players transfer clubs mid-season.
+
+    Args:
+        standings: League standings
+        gameweek: Gameweek number
+        bootstrap_data: Bootstrap data for player/team lookups
+
+    Returns:
+        list: Violations found, each with manager_name, team_name, and count
+              Sorted by count (descending), then team name
+              Empty list if no violations
+    """
+    violations = []
+
+    for manager in standings:
+        manager_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
+        if not manager_data:
+            continue
+
+        # Count players per team
+        team_counts = {}
+        for pick in manager_data['picks']:
+            player_data = fpl.get_player_by_id(pick['element'], bootstrap_data)
+            if player_data:
+                team_id = player_data['team']
+                team_counts[team_id] = team_counts.get(team_id, 0) + 1
+
+        # Find teams with 4+ players (3 is legal limit)
+        for team_id, count in team_counts.items():
+            if count > 3:
+                violations.append({
+                    'manager_name': manager['player_name'],
+                    'team_name': fpl.get_team_name(team_id, bootstrap_data),
+                    'count': count
+                })
+
+    # Sort by count (descending), then team name
+    violations.sort(key=lambda x: (-x['count'], x['team_name']))
+
+    return violations
+
+
 def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
     """
     Analyze the points return for each chip used this gameweek.

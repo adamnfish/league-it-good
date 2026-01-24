@@ -25,6 +25,7 @@ def format_gameweek_summary(
     bench_stats: List[Dict[str, Any]],
     position_leaders: Dict[str, Dict[str, Any]],
     best_differential: Dict[str, Any],
+    team_overload: List[Dict[str, Any]],
     transfer_stats: Optional[List[Dict[str, Any]]],
     chip_returns: Dict[str, List[Dict[str, Any]]],
     chip_returns_skipped: Dict[str, List[str]],
@@ -42,6 +43,7 @@ def format_gameweek_summary(
         bench_stats: Bench points analysis
         position_leaders: Best performers by position
         best_differential: Differential pick analysis
+        team_overload: Team overload violations
         transfer_stats: Transfer analysis (None for GW1)
         chip_returns: Chip return analysis
         chip_returns_skipped: Managers skipped due to missing previous gameweek data
@@ -101,7 +103,14 @@ def format_gameweek_summary(
         else:
             print(click.style("ℹ️  No qualifying differential picks found - skipping 'differential' section", fg='yellow'))
             print(click.style("    (requires unique player with 6+ points, no ties)", fg='cyan', dim=True))
-    
+
+    # Team overload section
+    overload_text = format_team_overload(team_overload)
+    if overload_text:
+        summary += overload_text
+    else:
+        print(click.style("ℹ️  No team violations - skipping 'OVER THE LIMIT' section", fg='yellow'))
+
     # Transfer analysis
     if gameweek > 1 and transfer_stats:
         summary += format_transfer_analysis(transfer_stats, standings, gameweek)
@@ -252,6 +261,40 @@ def format_differential_analysis(result: Dict[str, Any]) -> str:
     output = "\n🎯 *HIGHCONOCLAST*\n"
     output += f"Best Differential: _{result['manager']}_\n"
     output += f"  {result['player_name']} ({result['points']} pts)\n"
+    return output
+
+
+def format_team_overload(violations: List[Dict[str, Any]]) -> str:
+    """
+    Format team overload violations section.
+
+    Groups managers by team and player count.
+
+    Args:
+        violations: List of violation dicts with manager_name, team_name, count
+
+    Returns:
+        str: Formatted section, or empty string if no violations
+    """
+    if not violations:
+        return ""
+
+    output = "\n🍻 *OVER THE LIMIT*\n"
+
+    # Group by (count, team_name)
+    groups = {}
+    for violation in violations:
+        key = (violation['count'], violation['team_name'])
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(f"_{violation['manager_name']}_")
+
+    # Display grouped by count (descending), then alphabetically by team
+    for (count, team_name) in sorted(groups.keys(), key=lambda x: (-x[0], x[1])):
+        managers_str = ", ".join(groups[(count, team_name)])
+        plural = "players" if count > 1 else "player"
+        output += f"{count} {team_name} {plural}\n  {managers_str}\n"
+
     return output
 
 
