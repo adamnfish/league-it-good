@@ -124,7 +124,7 @@ def generate_summary(league_id: int, gameweek: int) -> str:
 
     # Analyze chip availability
     print("🔄 Checking chip availability...")
-    chip_availability = analysis.analyze_chip_availability(standings, gameweek)
+    chip_availability = analysis.analyze_chip_availability(standings, gameweek, bootstrap_data)
 
     # Generate formatted summary
     summary = display.format_gameweek_summary(

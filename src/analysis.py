@@ -347,11 +347,15 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
     }
 
 
-def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[str]]:
+def analyze_chip_availability(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, List[str]]:
     """
     Analyze which chips each manager has available.
 
-    For the first half of the season, tracks availability of:
+    Uses chip definitions from bootstrap data to determine validity windows.
+    Chips are typically restored at the halfway point, with each chip having
+    separate instances for first and second halves of the season.
+
+    Tracks availability of:
     - Bench Boost (BB)
     - Triple Captain (TC)
     - Wildcard (WC)
@@ -360,11 +364,28 @@ def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[
     Args:
         standings: League standings
         gameweek: Gameweek number
+        bootstrap_data: Bootstrap data containing chip definitions
 
     Returns:
         dict: Mapping of chip pattern to list of manager names
               e.g., {'BB, TC, WC, FH': ['Manager1', 'Manager2'], 'BB, TC, FH': ['Manager3']}
     """
+    # Build a map of which chip validity windows apply to this gameweek
+    # Each chip may have multiple instances (e.g., first half vs second half)
+    chip_windows = {}
+
+    if 'chips' in bootstrap_data:
+        for chip_def in bootstrap_data['chips']:
+            chip_name = chip_def.get('name')
+            start_event = chip_def.get('start_event')
+            stop_event = chip_def.get('stop_event')
+
+            if chip_name and start_event and stop_event:
+                # Check if this chip instance is valid for the current gameweek
+                if start_event <= gameweek <= stop_event:
+                    # Store the validity window for this chip
+                    chip_windows[chip_name] = (start_event, stop_event)
+
     # Track which chips each manager has available
     manager_chips = {}
 
@@ -373,24 +394,30 @@ def analyze_chip_availability(standings: list, gameweek: int) -> Dict[str, List[
         if not history_data:
             continue
 
-        # Get list of chips already used from the 'chips' array at top level
+        # Get list of chips used in the CURRENT validity window
+        # Only count a chip as used if it was used during the current window
         used_chips = set()
         if 'chips' in history_data:
-            for chip in history_data['chips']:
-                chip_name = chip.get('name')
-                if chip_name:
-                    used_chips.add(chip_name)
+            for chip_usage in history_data['chips']:
+                chip_name = chip_usage.get('name')
+                chip_event = chip_usage.get('event')
 
-        # Determine available chips (first-half chips only)
+                if chip_name and chip_event and chip_name in chip_windows:
+                    start_event, stop_event = chip_windows[chip_name]
+                    # Only count as used if it was used in the current validity window
+                    if start_event <= chip_event <= stop_event:
+                        used_chips.add(chip_name)
+
+        # Determine available chips
         # FPL API chip names: 'bboost', '3xc', 'wildcard', 'freehit'
         available = []
-        if 'bboost' not in used_chips:
+        if 'bboost' in chip_windows and 'bboost' not in used_chips:
             available.append('BB')
-        if '3xc' not in used_chips:
+        if '3xc' in chip_windows and '3xc' not in used_chips:
             available.append('TC')
-        if 'wildcard' not in used_chips:
+        if 'wildcard' in chip_windows and 'wildcard' not in used_chips:
             available.append('WC')
-        if 'freehit' not in used_chips:
+        if 'freehit' in chip_windows and 'freehit' not in used_chips:
             available.append('FH')
 
         # Create pattern key
