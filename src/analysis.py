@@ -191,43 +191,72 @@ def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Di
 def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Optional[List[Dict[str, Any]]]:
     """
     Analyze transfer activity and performance.
-    
+
+    Handles Free Hit edge case: After a Free Hit week, the squad reverts to
+    pre-Free Hit state, so we compare against GW N-2 instead of N-1.
+
     Args:
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
-    
+
     Returns:
         list: Transfer stats for each manager, or None if gameweek 1
     """
     if gameweek <= 1:
         return None
-    
+
     transfer_stats = []
-    
+
     for manager in standings:
         current_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
         previous_data = fpl.load_previous_gameweek_data(manager['entry'], gameweek)
-        
+
         if not current_data or not previous_data:
             continue
-        
+
+        # Check if previous gameweek was a Free Hit
+        # If so, we need to compare against GW N-2 instead of N-1
+        # because Free Hit reverts the squad after the week
+        comparison_gameweek = gameweek - 1
+        previous_was_freehit = previous_data.get('active_chip') == 'freehit'
+
+        if previous_was_freehit:
+            # Try to load GW N-2 data
+            if gameweek >= 3:
+                # Load data from 2 gameweeks ago
+                gw_n_minus_2 = gameweek - 2
+                cache_path = fpl.storage.get_cache_path(gw_n_minus_2, "manager", manager_id=manager['entry'])
+                comparison_data = fpl.storage.load_from_cache(cache_path)
+
+                if comparison_data:
+                    previous_data = comparison_data
+                    comparison_gameweek = gw_n_minus_2
+                else:
+                    # GW N-2 data not available, skip this manager's transfer analysis
+                    print(f"⚠️  Warning: Skipping transfer analysis for {manager['player_name']} (previous GW was Free Hit but GW {gw_n_minus_2} data not cached)")
+                    continue
+            else:
+                # Edge case: GW 3 after Free Hit in GW 2, no GW 1 data available
+                print(f"⚠️  Warning: Skipping transfer analysis for {manager['player_name']} (Free Hit in GW {gameweek - 1}, no earlier data available)")
+                continue
+
         # Get transfer info
         transfers_made = current_data['entry_history']['event_transfers']
         transfer_cost = current_data['entry_history']['event_transfers_cost']
         active_chip = current_data.get('active_chip')
-        
+
         # Skip free hit users (they don't actually change their squad)
         # Skip if no transfers unless they used wildcard (wildcard shows transfers_made as 0)
         if active_chip == 'freehit':
             continue
         if transfers_made == 0 and active_chip != 'wildcard':
             continue
-        
+
         # Find new players by comparing picks
         current_players = {pick['element'] for pick in current_data['picks']}
         previous_players = {pick['element'] for pick in previous_data['picks']}
-        
+
         new_players = current_players - previous_players
         
         # For wildcard users, the actual transfer count is the number of changes made
