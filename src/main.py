@@ -99,7 +99,15 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     # Get position changes from previous gameweek
     previous_standings = fpl.get_previous_league_standings(league_id, gameweek)
     position_changes = analysis.calculate_position_changes(standings, previous_standings)
-    
+
+    # Identify current gameweek winner(s)
+    highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']
+    current_winners = [m for m in standings if m['event_total'] == highest_score_points]
+
+    # Analyze winning streak
+    print("🔄 Checking for winning streaks...")
+    winning_streak = analysis.analyze_winning_streak(current_winners, league_id, gameweek)
+
     # Analyze captain choices
     print("🔄 Fetching captain details...")
     captain_choices = analysis.analyze_captain_choices(standings, gameweek, bootstrap_data)
@@ -144,7 +152,8 @@ def generate_summary(league_id: int, gameweek: int) -> str:
         transfer_stats=transfer_stats,
         chip_returns=chip_returns_data['chip_returns'],
         chip_returns_skipped=chip_returns_data['skipped_managers'],
-        chip_availability=chip_availability
+        chip_availability=chip_availability,
+        winning_streak=winning_streak
     )
     
     return summary

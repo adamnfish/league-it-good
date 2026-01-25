@@ -29,7 +29,8 @@ def format_gameweek_summary(
     transfer_stats: Optional[List[Dict[str, Any]]],
     chip_returns: Dict[str, List[Dict[str, Any]]],
     chip_returns_skipped: Dict[str, List[str]],
-    chip_availability: Dict[str, List[str]]
+    chip_availability: Dict[str, List[str]],
+    winning_streak: Optional[Dict[str, Any]] = None
 ) -> str:
     """
     Generate complete gameweek summary text.
@@ -48,6 +49,7 @@ def format_gameweek_summary(
         chip_returns: Chip return analysis
         chip_returns_skipped: Managers skipped due to missing previous gameweek data
         chip_availability: Chip availability data
+        winning_streak: Winning streak analysis (None if no streak)
 
     Returns:
         str: Formatted summary text ready for WhatsApp
@@ -74,6 +76,19 @@ def format_gameweek_summary(
         # Multiple tied winners - use more compact format
         winner_names = ", ".join([f"{m['player_name']}" for m in top_scorers])
         summary += f"Week {gameweek} tied winners ({highest_points} pts): {winner_names}\n"
+
+    # Add winning streak callout if applicable
+    if winning_streak:
+        streak_length = winning_streak['streak_length']
+        manager_names = winning_streak['manager_names']
+
+        if len(manager_names) == 1:
+            summary += f"  🔥 On a {streak_length}-week winning streak!\n"
+        else:
+            # Multiple managers on same streak (rare but possible)
+            names_str = ", ".join(manager_names)
+            summary += f"  🔥 {names_str} on {streak_length}-week winning streaks!\n"
+
     summary += f"Wooden spoon: {lowest_score['player_name']} ({lowest_score['entry_name']}) - {lowest_score['event_total']} pts\n"
     summary += f"League average: {average_score:.1f} pts\n"
     summary += "\n"

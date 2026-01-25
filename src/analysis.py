@@ -634,3 +634,91 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
         'chip_returns': chip_returns,
         'skipped_managers': skipped_managers
     }
+
+
+def analyze_winning_streak(current_winners: List[Dict], league_id: int, gameweek: int) -> Optional[Dict[str, Any]]:
+    """
+    Analyze winning streaks for current gameweek winner(s).
+
+    Looks back week-by-week to count consecutive wins. Stops when:
+    - A different manager won that week
+    - Cache data is missing (can't reliably determine streak)
+    - Reach gameweek 1
+
+    Tied wins count as wins - if multiple managers tied for highest score,
+    all are considered winners for that week.
+
+    Args:
+        current_winners: List of manager dicts who won current gameweek
+        league_id: FPL league ID
+        gameweek: Current gameweek number
+
+    Returns:
+        dict: Contains 'streak_length', 'manager_names', and 'stopped_at_gw'
+              Returns None if streak < 2 or cache data missing
+    """
+    # No history for gameweek 1
+    if gameweek <= 1:
+        return None
+
+    # Extract current winner IDs
+    current_winner_ids = {winner['entry'] for winner in current_winners}
+
+    # Initialize streak counters for each current winner
+    streaks = {winner_id: 1 for winner_id in current_winner_ids}
+
+    # Look back week by week
+    for check_gw in range(gameweek - 1, 0, -1):
+        # Load league standings from cache
+        cache_path = fpl.storage.get_cache_path(check_gw, "league", league_id=league_id)
+        league_data = fpl.storage.load_from_cache(cache_path)
+
+        if not league_data:
+            # Cache missing - can't reliably determine streak
+            print(f"⚠️  Warning: Streak analysis stopped - missing cache for GW {check_gw}")
+            return None
+
+        standings = league_data['standings']['results']
+        if not standings:
+            print(f"⚠️  Warning: Streak analysis stopped - empty standings for GW {check_gw}")
+            return None
+
+        # Find highest score in that gameweek
+        highest_score = max(m['event_total'] for m in standings)
+
+        # Get all managers who tied at highest score (tied wins count)
+        winners_that_week = {m['entry'] for m in standings if m['event_total'] == highest_score}
+
+        # Check if any current winners also won that week
+        continuing_winners = current_winner_ids.intersection(winners_that_week)
+
+        if not continuing_winners:
+            # Streak ends - none of the current winners won this week
+            break
+
+        # Increment streak for continuing winners
+        for winner_id in continuing_winners:
+            streaks[winner_id] += 1
+
+    # Find longest streak among current winners
+    longest_streak = max(streaks.values())
+
+    # Only show streaks of 2 or more
+    if longest_streak < 2:
+        return None
+
+    # Get names of managers with longest streak
+    manager_names = [
+        winner['player_name']
+        for winner in current_winners
+        if streaks[winner['entry']] == longest_streak
+    ]
+
+    # Determine which gameweek the streak goes back to
+    stopped_at_gw = gameweek - longest_streak + 1
+
+    return {
+        'streak_length': longest_streak,
+        'manager_names': manager_names,
+        'stopped_at_gw': stopped_at_gw
+    }
