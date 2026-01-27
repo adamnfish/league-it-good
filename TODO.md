@@ -128,6 +128,12 @@
 - [x] **League-specific output files** - Parameterize filenames with league ID to prevent overwriting
 - [x] **User feedback** - Add logging to the summary generation to describe clarify why sections are skipped
 - [x] **Restructure application** - Separate modules for FPL / cache / main / display (✨ **COMPLETED!** See REFACTORING.md)
+- [x] **Multi-row gameweek table display** - Split gameweek columns into rows of 10 for better readability
+  - Switch to multi-row format when max gameweek >= 10
+  - Display gameweek grid in blocks: GW 1-10, 11-20, 21-30, 31-38
+  - Gray out the tens column (0, 10, 20, 30) to de-emphasize labels
+  - Apply to both `leagues` and `import` table displays
+  - Keep single-row format for early season (GW 1-9)
 - [ ] **Table formatting library** - Consider using `tabulate` or similar for cleaner admin table formatting in `leagues` command
 - [ ] **Single data fetch** - Let's fetch the gameweek data we need once up front, and pass this around the program while it runs, rather than have each feature independently lookup the gameweek/manager data
 - [ ] **Remove legacy entry point** - The gameweek.py file is now deprecated, let's remove it and update all the usage docs

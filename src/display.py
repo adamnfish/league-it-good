@@ -13,7 +13,7 @@ and no calculations (delegates to analysis module).
 """
 
 import click
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 
 
 def format_gameweek_summary(
@@ -381,29 +381,111 @@ def format_transfer_analysis(transfer_stats: List[Dict[str, Any]], standings: li
     return output
 
 
+def _should_use_multirow_format(max_gw: int) -> bool:
+    """
+    Determine if multi-row format should be used for gameweek display.
+
+    Args:
+        max_gw: Maximum gameweek number
+
+    Returns:
+        bool: True if max_gw >= 10, False otherwise
+    """
+    return max_gw >= 10
+
+
+def _build_gameweek_cells(gameweeks: List[int], min_gw: int, max_gw: int,
+                         icon_func: Callable[[int, List[int]], str]) -> Dict[int, str]:
+    """
+    Build mapping of gameweek numbers to display icons.
+
+    Args:
+        gameweeks: List of gameweeks that have data
+        min_gw: Minimum gameweek number
+        max_gw: Maximum gameweek number
+        icon_func: Function that takes (gw, gameweeks) and returns icon/status string
+
+    Returns:
+        Dict mapping gameweek number to display icon
+    """
+    cells = {}
+    for gw in range(min_gw, max_gw + 1):
+        cells[gw] = icon_func(gw, gameweeks)
+    return cells
+
+
+def _format_multirow_gameweeks(gw_cells: Dict[int, str], min_gw: int, max_gw: int) -> List[str]:
+    """
+    Format gameweek cells into multi-row blocks (rows of 10).
+
+    Args:
+        gw_cells: Mapping of gameweek number to display icon
+        min_gw: Minimum gameweek number
+        max_gw: Maximum gameweek number
+
+    Returns:
+        List of strings, one per row (GW 1-9, 10-19, 20-29, 30-38)
+        Each string contains: tens column (dim styled) + gameweek data cells
+    """
+    rows = []
+
+    # Determine which decade rows we need (0 for GW 1-9, 10, 20, 30)
+    start_tens = 0  # Always start with GW 1-9
+    end_tens = (max_gw // 10) * 10
+
+    for tens in range(start_tens, end_tens + 1, 10):
+        row_cells = []
+
+        # Tens column (empty for first row, 10/20/30 for subsequent rows)
+        if tens == 0:
+            tens_label = "  "  # Empty for first row
+        else:
+            tens_label = click.style(str(tens), dim=True) + " "
+        row_cells.append(tens_label)
+
+        # Build columns 0-9 (ones digits)
+        for ones in range(10):
+            gw = tens + ones
+
+            # For first row (tens=0), skip column 0 (no GW 0)
+            if tens == 0 and ones == 0:
+                row_cells.append("  ")  # Empty cell with padding
+            # Check if this gameweek exists in our range
+            elif min_gw <= gw <= max_gw:
+                icon = gw_cells[gw]
+                row_cells.append(f"{icon} ")  # Icon + space for padding
+            else:
+                # Beyond our range (e.g., GW 39 doesn't exist)
+                row_cells.append("  ")  # Empty cell with padding
+
+        rows.append(" ".join(row_cells))
+
+    return rows
+
+
 def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
     """
     Display administrative table of cached leagues.
-    
+
     Args:
         league_data: Cached league data from storage module
     """
     if not league_data:
         print("No cached league data found")
         return
-    
+
     print("📊 Cached League Data")
     print("=" * 80)
-    
+
     # Find the maximum gameweek across all leagues
     all_gameweeks = set()
     for data in league_data.values():
         all_gameweeks.update(data['gameweeks'])
-    
+
     if not all_gameweeks:
         print("No gameweek data found")
         return
-    
+
     max_gw = max(all_gameweeks)
     min_gw = min(all_gameweeks)
 
@@ -414,11 +496,19 @@ def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
     )
     team_col_width = 3 if has_large_league else 2
 
-    # Build gameweek numbers for header
-    gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+    # Determine if we should use multi-row format
+    use_multirow = _should_use_multirow_format(max_gw)
 
-    # Header with 👥 emoji and GW prefix
-    print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
+    if use_multirow:
+        # Multi-row format: header shows ones digits (0-9)
+        zero = click.style("0", fg='cyan', dim=True)
+        header_gw = f"GW  {zero}  1  2  3  4  5  6  7  8  9"
+        print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} {header_gw}")
+    else:
+        # Single-row format: header shows all gameweek numbers
+        gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+        print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
+
     print("-" * 80)
 
     for league_id in sorted(league_data.keys()):
@@ -438,19 +528,43 @@ def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
         else:
             team_count_str = str(team_count)
 
-        # Build gameweek display with ✓ for present, x for missing
-        # Pad icons to match width of gameweek numbers (2 chars for 10+, 1 char for 1-9)
-        # Left-align so icons line up with first digit of gameweek number
-        gw_display = []
-        for gw in range(min_gw, max_gw + 1):
-            gw_width = len(str(gw))
-            if gw in gameweeks:
-                gw_display.append(f"{'✓':<{gw_width}}")
-            else:
-                gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
+        if use_multirow:
+            # Multi-row format
+            # Icon function for admin table
+            def admin_icon_func(gw: int, gws: List[int]) -> str:
+                if gw in gws:
+                    return "✓"
+                else:
+                    return click.style("x", bold=True)
 
-        gw_string = " ".join(gw_display)
-        print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
+            # Build gameweek cells
+            gw_cells = _build_gameweek_cells(gameweeks, min_gw, max_gw, admin_icon_func)
+
+            # Format into multi-row strings
+            gw_rows = _format_multirow_gameweeks(gw_cells, min_gw, max_gw)
+
+            # Print first row with league info
+            print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}   {gw_rows[0]}")
+
+            # Print continuation rows (empty league columns)
+            league_info_spacing = " " * 10 + " " + " " * 25 + " " * team_col_width
+            for gw_row in gw_rows[1:]:
+                print(f"{league_info_spacing}   {gw_row}")
+        else:
+            # Single-row format (existing implementation)
+            # Build gameweek display with ✓ for present, x for missing
+            # Pad icons to match width of gameweek numbers (2 chars for 10+, 1 char for 1-9)
+            # Left-align so icons line up with first digit of gameweek number
+            gw_display = []
+            for gw in range(min_gw, max_gw + 1):
+                gw_width = len(str(gw))
+                if gw in gameweeks:
+                    gw_display.append(f"{'✓':<{gw_width}}")
+                else:
+                    gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
+
+            gw_string = " ".join(gw_display)
+            print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = gameweek cached, {click.style('x', bold=True)} = missing gameweek data")
 
@@ -494,11 +608,19 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
     )
     team_col_width = 3 if has_large_league else 2
 
-    # Build gameweek numbers for header
-    gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+    # Determine if we should use multi-row format
+    use_multirow = _should_use_multirow_format(max_gw)
 
-    # Header with 👥 emoji and GW prefix
-    print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
+    if use_multirow:
+        # Multi-row format: header shows ones digits (0-9)
+        zero = click.style("0", fg='cyan', dim=True)
+        header_gw = f"GW  {zero}  1  2  3  4  5  6  7  8  9"
+        print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} {header_gw}")
+    else:
+        # Single-row format: header shows all gameweek numbers
+        gw_numbers = " ".join(str(gw) for gw in range(min_gw, max_gw + 1))
+        print(f"{'League ID':<10} {'League Name':<25} {'👥':<{team_col_width}} GW {gw_numbers}")
+
     print("-" * 80)
 
     for league_id in sorted(league_data.keys()):
@@ -518,25 +640,54 @@ def format_import_table(league_data: Dict[int, Dict[str, Any]],
         else:
             team_count_str = str(team_count)
 
-        # Build gameweek display with status icons
-        # Pad icons to match width of gameweek numbers
-        gw_display = []
-        for gw in range(min_gw, max_gw + 1):
-            gw_width = len(str(gw))
+        if use_multirow:
+            # Multi-row format
+            # Icon function for import table
+            def import_icon_func(gw: int, gws: List[int]) -> str:
+                # Get status from import_status
+                if league_id in import_status and gw in import_status[league_id]:
+                    return import_status[league_id][gw]
+                # If not in backup, show x
+                elif gw not in gws:
+                    return click.style("x", bold=True)
+                else:
+                    # Shouldn't happen, but default to ?
+                    return "?"
 
-            # Get status from import_status
-            if league_id in import_status and gw in import_status[league_id]:
-                status = import_status[league_id][gw]
-                gw_display.append(f"{status:<{gw_width}}")
-            # If not in backup, show x
-            elif gw not in gameweeks_in_archive:
-                gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
-            else:
-                # Shouldn't happen, but default to ?
-                gw_display.append(f"{'?':<{gw_width}}")
+            # Build gameweek cells
+            gw_cells = _build_gameweek_cells(gameweeks_in_archive, min_gw, max_gw, import_icon_func)
 
-        gw_string = " ".join(gw_display)
-        print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
+            # Format into multi-row strings
+            gw_rows = _format_multirow_gameweeks(gw_cells, min_gw, max_gw)
+
+            # Print first row with league info
+            print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}   {gw_rows[0]}")
+
+            # Print continuation rows (empty league columns)
+            league_info_spacing = " " * 10 + " " + " " * 25 + " " * team_col_width
+            for gw_row in gw_rows[1:]:
+                print(f"{league_info_spacing}   {gw_row}")
+        else:
+            # Single-row format (existing implementation)
+            # Build gameweek display with status icons
+            # Pad icons to match width of gameweek numbers
+            gw_display = []
+            for gw in range(min_gw, max_gw + 1):
+                gw_width = len(str(gw))
+
+                # Get status from import_status
+                if league_id in import_status and gw in import_status[league_id]:
+                    status = import_status[league_id][gw]
+                    gw_display.append(f"{status:<{gw_width}}")
+                # If not in backup, show x
+                elif gw not in gameweeks_in_archive:
+                    gw_display.append(click.style(f"{'x':<{gw_width}}", bold=True))
+                else:
+                    # Shouldn't happen, but default to ?
+                    gw_display.append(f"{'?':<{gw_width}}")
+
+            gw_string = " ".join(gw_display)
+            print(f"{league_id:<10} {league_name:<25} {team_count_str:<{team_col_width}}     {gw_string}")
 
     print(f"\nLegend: ✓ = skipped (already exists), ↓ = imported, {click.style('x', bold=True)} = not in backup")
 
