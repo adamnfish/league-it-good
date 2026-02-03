@@ -11,7 +11,7 @@ This is the glue that ties all the modules together.
 """
 
 import click
-from . import storage, fpl, analysis, display
+from . import storage, fpl, analysis, display, stats
 
 
 class GroupedCommands(click.Group):
@@ -21,7 +21,7 @@ class GroupedCommands(click.Group):
         """Format commands into grouped sections."""
         # Define command groups
         command_groups = {
-            'FPL Commands': ['leagues', 'gen', 'fetch'],
+            'FPL Commands': ['leagues', 'gen', 'stats', 'fetch'],
             'Backup Commands': ['backups', 'export', 'import', 'describe']
         }
 
@@ -172,6 +172,70 @@ def gen(league_id, gameweek):
     # Save to file
     output_file = storage.save_summary(summary, league_id, gameweek)
     print(f"\n💾 Summary saved to '{output_file}'")
+
+
+@cli.command('stats')
+@click.option('--league-id', '-l', type=int, required=True, help='FPL league ID')
+@click.option('--gameweek-range', '-r', type=str, help='Gameweek range: "all", "1-10", or "1,3,5" (defaults to "all")')
+def stats_cmd(league_id, gameweek_range):
+    """Analyze season-long aggregate statistics for a league.
+
+    Calculates statistics across cached gameweeks:
+    - Most gameweeks won
+    - Best position scores (defence/midfield/attack)
+    - Highest points on bench
+    - Best chip returns
+    - Most transfer points spent
+
+    Examples:
+      lig stats -l 123456              # All cached gameweeks
+      lig stats -l 123456 -r all       # Explicit all gameweeks
+      lig stats -l 123456 -r "1-10"    # Gameweeks 1-10
+      lig stats -l 123456 -r "1,3,5"   # Specific gameweeks
+    """
+    try:
+        print("📊 Analyzing season statistics...")
+
+        # Get available gameweeks
+        available_gameweeks = stats.get_available_gameweeks(league_id)
+        if not available_gameweeks:
+            print(f"❌ Error: No cached data found for league {league_id}")
+            print(f"Run 'lig fetch -l {league_id} -g <gameweek>' to fetch data first")
+            return
+
+        # Parse gameweek range
+        try:
+            gameweeks = stats.parse_gameweek_range(gameweek_range, available_gameweeks)
+        except ValueError as e:
+            print(f"❌ Error: {e}")
+            return
+
+        print(f"Found {len(available_gameweeks)} cached gameweek(s) for league {league_id}")
+        print(f"Analyzing {len(gameweeks)} gameweek(s)...\n")
+
+        # Calculate statistics
+        statistics = stats.calculate_season_statistics(league_id, gameweeks)
+
+        # Format and display
+        summary = stats.format_stats_summary(statistics)
+        print(summary)
+
+        # Save to file
+        output_dir = storage.get_data_dir()
+        import os
+        summaries_dir = os.path.join(output_dir, "summaries")
+        os.makedirs(summaries_dir, exist_ok=True)
+
+        output_file = os.path.join(summaries_dir, f"league_{league_id}_season_stats.txt")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(summary)
+
+        print(f"💾 Stats saved to '{output_file}'")
+
+    except Exception as e:
+        print(f"❌ Error generating stats: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 @cli.command()
