@@ -43,6 +43,21 @@ def get_backups_dir() -> str:
     return backups_dir
 
 
+def get_config_dir() -> str:
+    """
+    Get the user-level config directory (~/.fpl-tools/config/), creating it if needed.
+
+    Holds per-league TOML config files (under leagues/) and shared assets
+    such as avatars (under avatars/).
+
+    Returns:
+        str: Absolute path to config directory
+    """
+    config_dir = os.path.join(get_data_dir(), "config")
+    os.makedirs(config_dir, exist_ok=True)
+    return config_dir
+
+
 def resolve_backup_name(backup_name: str) -> str:
     """
     Resolve backup filename to full path in backups directory.
