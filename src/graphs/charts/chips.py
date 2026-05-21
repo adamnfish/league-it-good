@@ -145,6 +145,7 @@ def render_chip_chart(
     config: LeagueConfig,
     output_path: Path,
     is_triple_captain: bool = False,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a chip return chart and save it as a PNG.
@@ -166,7 +167,7 @@ def render_chip_chart(
         return
 
     fig, ax = render.make_bar_figure(n_managers)
-    render.apply_bar_style(fig, ax, title=f"Chip Returns · {chip_name}")
+    render.apply_bar_style(fig, ax, title=f"Chip Returns · {chip_name}", subtitle=subtitle)
 
     # X axis: scale to the highest total, padded for avatar overlap
     max_total = max((r["total"] for r in records), default=1)

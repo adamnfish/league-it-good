@@ -15,7 +15,7 @@ Outfit font, manager avatar at the bar tip, grey background track.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
@@ -43,6 +43,7 @@ def render_ranked_bar(
     output_path: Path,
     xlabel: str = "Points",
     higher_is_worse: bool = False,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a single horizontal bar per manager, sorted by value.
@@ -66,7 +67,7 @@ def render_ranked_bar(
 
     n_managers = len(data)
     fig, ax = render.make_bar_figure(n_managers)
-    render.apply_bar_style(fig, ax, title=title, xlabel=xlabel)
+    render.apply_bar_style(fig, ax, title=title, xlabel=xlabel, subtitle=subtitle)
 
     max_value = max(v for _, v in data) if data else 1
     x_max = max(max_value * (1 + render.X_PADDING_FRACTION), 10)
@@ -129,6 +130,7 @@ def render_wins_losses_bar(
     total_gameweeks: int,
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a fixed-width stacked bar showing wins, mid-table, and losses
@@ -163,6 +165,7 @@ def render_wins_losses_bar(
         fig, ax,
         title="Gameweek Wins & Losses",
         xlabel="Gameweeks",
+        subtitle=subtitle,
     )
 
     x_max = total_gameweeks * (1 + render.X_PADDING_FRACTION)
@@ -259,6 +262,7 @@ def render_position_breakdown(
     position_data: Dict[str, list],
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a grouped horizontal bar chart showing defence, midfield, and
@@ -317,6 +321,7 @@ def render_position_breakdown(
         fig, ax,
         title="Points by Position",
         xlabel="Points",
+        subtitle=subtitle,
     )
 
     max_any = max(
@@ -388,6 +393,7 @@ def render_consistency_bar(
     consistency: Dict[ManagerName, Dict[str, float]],
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a bar chart showing scoring consistency per manager.
@@ -422,6 +428,7 @@ def render_consistency_bar(
         fig, ax,
         title="Scoring Consistency",
         xlabel="Points",
+        subtitle=subtitle,
     )
 
     max_high = max(v["high"] for _, v in sorted_managers) if sorted_managers else 1

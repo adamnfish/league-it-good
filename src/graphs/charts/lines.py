@@ -50,6 +50,7 @@ def _render_line_chart(
     invert_y: bool = False,
     y_tick_formatter: Optional[ticker.Formatter] = None,
     final_value_fmt: str = "{v}",
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Core renderer shared by all three line chart types.
@@ -73,7 +74,7 @@ def _render_line_chart(
 
     # Figure is wider than bar charts — lines need horizontal room
     fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 7))
-    render.apply_line_style(fig, ax, title=title, ylabel=ylabel)
+    render.apply_line_style(fig, ax, title=title, ylabel=ylabel, subtitle=subtitle)
 
     all_gameweeks = sorted({gw for pts in series.values() for gw, _ in pts})
     if not all_gameweeks:
@@ -183,6 +184,7 @@ def render_weekly_scores(
     series: WeeklySeries,
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a line chart of raw points scored each gameweek per manager.
@@ -204,6 +206,7 @@ def render_weekly_scores(
         ylabel="Points",
         invert_y=False,
         final_value_fmt="{v}pts",
+        subtitle=subtitle,
     )
 
 
@@ -211,6 +214,7 @@ def render_league_position(
     series: RankSeries,
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a line chart of mini-league position at the end of each gameweek.
@@ -233,7 +237,7 @@ def render_league_position(
     n_managers = max(all_ranks) if all_ranks else 1
 
     fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 7))
-    render.apply_line_style(fig, ax, title="League Position", ylabel="Position")
+    render.apply_line_style(fig, ax, title="League Position", ylabel="Position", subtitle=subtitle)
 
     all_gameweeks = sorted({gw for pts in series.values() for gw, _ in pts})
     if not all_gameweeks:
@@ -310,6 +314,7 @@ def render_cumulative_points(
     series: WeeklySeries,
     config: LeagueConfig,
     output_path: Path,
+    subtitle: Optional[str] = None,
 ) -> None:
     """
     Render a running total points race chart — the classic season arc.
@@ -332,6 +337,7 @@ def render_cumulative_points(
         ylabel="Total Points",
         invert_y=False,
         final_value_fmt="{v}pts",
+        subtitle=subtitle,
     )
 
 
