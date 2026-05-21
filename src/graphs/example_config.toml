@@ -1,0 +1,51 @@
+# League-it-good graph config
+# Copy this file to config/leagues/{your_league_id}.toml and fill in your details.
+#
+# The fpl_name must match the player_name exactly as it appears in the FPL API.
+# Run `lig leagues` to see cached league data including manager names.
+
+[league]
+id = 12345
+name = "Our League"  # optional — overrides the FPL API league name on charts
+
+# One [[managers]] entry per manager.
+# Managers not listed here will still appear on charts but with a generic
+# grey colour and initials avatar.
+
+[[managers]]
+fpl_name = "Adam Smith"       # exact match to FPL API player_name
+display_name = "Adam"        # short name shown on chart axes
+avatar = "avatars/adam.png"  # relative to config/ directory, optional
+colour = "#e63946"
+
+[[managers]]
+fpl_name = "Dave Jones"
+display_name = "Dave"
+avatar = "avatars/dave.png"
+colour = "#457b9d"
+
+[[managers]]
+fpl_name = "Sarah Mudlark"
+display_name = "Sarah"
+avatar = "avatars/sarah.png"
+colour = "#2a9d8f"
+
+[[managers]]
+fpl_name = "Mike Brown"
+display_name = "Mike"
+# avatar is optional — omit to use initials fallback
+colour = "#e9c46a"
+
+# Suggested colours for up to 12 managers (copy as needed):
+#   "#e63946"  red
+#   "#457b9d"  steel blue
+#   "#2a9d8f"  teal
+#   "#e9c46a"  yellow
+#   "#f4a261"  orange
+#   "#a8dadc"  light blue
+#   "#c77dff"  purple
+#   "#06d6a0"  green
+#   "#ef476f"  pink
+#   "#ffd166"  gold
+#   "#118ab2"  dark blue
+#   "#8ecae6"  sky blue
