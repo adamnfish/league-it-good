@@ -487,7 +487,7 @@ def render_consistency_bar(
         # Std deviation annotation to the right of the bar
         ax.text(
             mean + x_max * 0.01, i,
-            f"σ {std:.1f}",
+            f"SD {std:.1f}",
             va="center",
             ha="left",
             color=render.TEXT_SECONDARY,
@@ -502,7 +502,7 @@ def render_consistency_bar(
     # Subtitle explaining the range line
     fig.text(
         0.04, 0.02,
-        "Bar = mean score  ·  Line = best to worst single gameweek  ·  σ = standard deviation",
+        "Bar = mean score  ·  Line = best to worst single gameweek  ·  SD = standard deviation",
         color=render.TEXT_MUTED,
         fontsize=8,
         va="bottom",

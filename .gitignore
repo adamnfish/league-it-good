@@ -14,8 +14,9 @@ __pycache__/
 dist/
 build/
 
-# Generated graph output (in case --output-dir is redirected into the repo)
-graphs/
+# Generated graph output at the repo root (in case --output-dir is redirected here).
+# Anchored so it does NOT shadow the src/graphs/ package.
+/graphs/
 
 # IDE
 .vscode/
