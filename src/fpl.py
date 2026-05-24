@@ -204,6 +204,20 @@ def get_player_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     return "Unknown Player"
 
 
+def get_player_short_name(player_id: int, bootstrap_data: Dict[Any, Any]) -> str:
+    """
+    Get the short display name (web_name) for a player.
+
+    web_name is the colloquial name FPL uses in the UI (e.g. "Salah",
+    "Gabriel") rather than the full first+second name. Preferred where
+    horizontal space is tight, such as inside chart bar segments.
+    """
+    player = get_player_by_id(player_id, bootstrap_data)
+    if player:
+        return player.get("web_name") or f"{player['first_name']} {player['second_name']}"
+    return "Unknown Player"
+
+
 def get_team_name(team_id: int, bootstrap_data: Dict[Any, Any]) -> str:
     """
     Get team name from team ID using bootstrap data.

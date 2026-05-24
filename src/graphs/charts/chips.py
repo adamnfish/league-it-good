@@ -192,6 +192,8 @@ def render_chip_chart(
             display_name,
             colour,
             size=render.AVATAR_SIZE_BAR,
+            border_colour=colour,
+            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
         )
 
         # 1. Grey background track the full width of the chart

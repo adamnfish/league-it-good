@@ -182,13 +182,15 @@ class TestCalculateCumulativePoints:
             "Beth": [(1, 50), (2, 70), (3, 40)],
         }
         result = ts.calculate_cumulative_points(weekly)
-        assert result["Adam"] == [(1, 60), (2, 105), (3, 185)]
-        assert result["Beth"] == [(1, 50), (2, 120), (3, 160)]
+        # Series is prepended with a (0, 0) origin so all line charts
+        # start from the same point.
+        assert result["Adam"] == [(0, 0), (1, 60), (2, 105), (3, 185)]
+        assert result["Beth"] == [(0, 0), (1, 50), (2, 120), (3, 160)]
 
     def test_single_gameweek(self):
         weekly = {"Adam": [(1, 60)]}
         result = ts.calculate_cumulative_points(weekly)
-        assert result["Adam"] == [(1, 60)]
+        assert result["Adam"] == [(0, 0), (1, 60)]
 
     def test_empty_input(self):
         result = ts.calculate_cumulative_points({})
@@ -198,7 +200,7 @@ class TestCalculateCumulativePoints:
         # Input not sorted — cumulative should still work correctly
         weekly = {"Adam": [(3, 80), (1, 60), (2, 45)]}
         result = ts.calculate_cumulative_points(weekly)
-        assert result["Adam"] == [(1, 60), (2, 105), (3, 185)]
+        assert result["Adam"] == [(0, 0), (1, 60), (2, 105), (3, 185)]
 
     def test_does_not_mutate_input(self):
         weekly = {"Adam": [(1, 60), (2, 45)]}

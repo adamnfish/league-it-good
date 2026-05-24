@@ -452,7 +452,7 @@ def calculate_best_chip_returns(league_id: int, gameweeks: List[int]) -> Dict[st
                             player = players_by_id.get(player_id)
                             if player:
                                 base_points = player.get('event_points', 0)
-                                player_name = fpl.get_player_name(player_id, bootstrap_data)
+                                player_name = fpl.get_player_short_name(player_id, bootstrap_data)
                                 triple_captain_returns.append((manager_name, base_points, gameweek, player_name))
                             break
 

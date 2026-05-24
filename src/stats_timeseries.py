@@ -133,7 +133,9 @@ def calculate_cumulative_points(
 
     for manager, scores in weekly_scores.items():
         running = 0
-        cumulative[manager] = []
+        # Anchor every manager at (0, 0) so all lines start from the same
+        # origin in the chart — easier to read close races at the start.
+        cumulative[manager] = [(0, 0)]
         for gameweek, points in sorted(scores, key=lambda x: x[0]):
             running += points
             cumulative[manager].append((gameweek, running))

@@ -20,8 +20,6 @@ import click
 from .config import LeagueConfig
 from .charts.bars import (
     render_ranked_bar,
-    render_wins_losses_bar,
-    render_position_breakdown,
     render_consistency_bar,
 )
 from .charts.chips import render_chip_chart
@@ -36,10 +34,13 @@ from .charts.lines import (
 # One-line summary per chart for CLI --list output and help text.
 CHART_DESCRIPTIONS: Dict[str, str] = {
     "legend":            "Cover sheet: league name, season, manager list with colours",
-    "wins_losses":       "Stacked bar of weekly wins / losses / mid-table per manager",
+    "wins":              "Weekly wins per manager, ranked highest to lowest",
+    "losses":            "Weekly losses per manager, ranked highest to lowest",
     "bench_points":      "Bench points left unused, ranked highest to lowest",
     "transfer_costs":    "Points lost to transfer hits, ranked highest to lowest",
-    "position_breakdown":"Defence / midfield / attack points per manager",
+    "position_defence":  "Defence points (GK + DEF) per manager, ranked",
+    "position_midfield": "Midfield points per manager, ranked",
+    "position_attack":   "Attack points per manager, ranked",
     "consistency":       "Mean weekly score with high/low range and standard deviation",
     "chip_bench_boost":  "Best Bench Boost returns per manager",
     "chip_triple_captain":"Best Triple Captain returns per manager",
@@ -127,11 +128,28 @@ def build_chart_dispatch(
             season=season,
             output_path=output_dir / "legend.png",
         ),
-        "wins_losses": lambda: render_wins_losses_bar(
-            wins_losses=timeseries()["wins_losses"],
-            total_gameweeks=len(gameweeks),
+        "wins": lambda: render_ranked_bar(
+            title="Gameweek Wins",
+            data=sorted(
+                [(name, counts["wins"]) for name, counts in timeseries()["wins_losses"].items()],
+                key=lambda x: x[1],
+                reverse=True,
+            ),
             config=config,
-            output_path=output_dir / "wins_losses.png",
+            output_path=output_dir / "wins.png",
+            xlabel="Wins",
+            subtitle=subtitle,
+        ),
+        "losses": lambda: render_ranked_bar(
+            title="Gameweek Losses",
+            data=sorted(
+                [(name, counts["losses"]) for name, counts in timeseries()["wins_losses"].items()],
+                key=lambda x: x[1],
+                reverse=True,
+            ),
+            config=config,
+            output_path=output_dir / "losses.png",
+            xlabel="Losses",
             subtitle=subtitle,
         ),
         "bench_points": lambda: render_ranked_bar(
@@ -140,7 +158,6 @@ def build_chart_dispatch(
             config=config,
             output_path=output_dir / "bench_points.png",
             xlabel="Points",
-            higher_is_worse=False,
             subtitle=subtitle,
         ),
         "transfer_costs": lambda: render_ranked_bar(
@@ -149,13 +166,33 @@ def build_chart_dispatch(
             config=config,
             output_path=output_dir / "transfer_costs.png",
             xlabel="Points Lost",
-            higher_is_worse=True,
             subtitle=subtitle,
         ),
-        "position_breakdown": lambda: render_position_breakdown(
-            position_data=s()["best_position_scores"],
+        "position_defence": lambda: render_ranked_bar(
+            title="Points by Defence (GK + DEF)",
+            data=sorted(s()["best_position_scores"].get("defence", []),
+                        key=lambda x: x[1], reverse=True),
             config=config,
-            output_path=output_dir / "position_breakdown.png",
+            output_path=output_dir / "position_defence.png",
+            xlabel="Points",
+            subtitle=subtitle,
+        ),
+        "position_midfield": lambda: render_ranked_bar(
+            title="Points by Midfield",
+            data=sorted(s()["best_position_scores"].get("midfield", []),
+                        key=lambda x: x[1], reverse=True),
+            config=config,
+            output_path=output_dir / "position_midfield.png",
+            xlabel="Points",
+            subtitle=subtitle,
+        ),
+        "position_attack": lambda: render_ranked_bar(
+            title="Points by Attack",
+            data=sorted(s()["best_position_scores"].get("attack", []),
+                        key=lambda x: x[1], reverse=True),
+            config=config,
+            output_path=output_dir / "position_attack.png",
+            xlabel="Points",
             subtitle=subtitle,
         ),
         "consistency": lambda: render_consistency_bar(

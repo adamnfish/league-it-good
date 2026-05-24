@@ -114,9 +114,9 @@ def render_legend(
 
     # Header — league name + subtitle. Coordinates in figure space so the
     # block stays at a fixed inch-height regardless of row count.
-    header_top_y = 1 - (0.35 / fig_height)
+    header_top_y = 1 - (0.55 / fig_height)
     fig.text(
-        0.04, header_top_y,
+        0.06, header_top_y,
         league_name,
         color=render.ACCENT,
         fontsize=40,
@@ -126,7 +126,7 @@ def render_legend(
     )
     subtitle = f"Season {season}  ·  Gameweeks {first_gw}–{last_gw}"
     fig.text(
-        0.04, header_top_y - (0.85 / fig_height),
+        0.06, header_top_y - (0.40 / fig_height),
         subtitle,
         color=render.TEXT_SECONDARY,
         fontsize=14,
@@ -158,7 +158,10 @@ def render_legend(
     row_count = len(config.managers)
     row_height = 1.0 / row_count
 
-    for i, manager in enumerate(config.managers):
+    sorted_managers = sorted(
+        config.managers, key=lambda m: m.display_name.casefold()
+    )
+    for i, manager in enumerate(sorted_managers):
         # Rows render top-to-bottom: index 0 is the top row.
         row_centre_y = 1.0 - (i + 0.5) * row_height
 
@@ -166,7 +169,7 @@ def render_legend(
             manager.avatar_path,
             manager.display_name,
             manager.colour,
-            size=render.AVATAR_SIZE_BAR,
+            size=render.AVATAR_SIZE_LEGEND,
         )
         render.place_avatar(
             ax,

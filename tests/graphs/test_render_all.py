@@ -169,9 +169,10 @@ class TestRenderAll:
         run_render_all(output)
         assert output.exists()
 
-    def test_wins_losses_png_produced(self, tmp_path):
+    def test_wins_and_losses_pngs_produced(self, tmp_path):
         run_render_all(tmp_path)
-        assert (tmp_path / "wins_losses.png").exists()
+        assert (tmp_path / "wins.png").exists()
+        assert (tmp_path / "losses.png").exists()
 
     def test_bench_points_png_produced(self, tmp_path):
         run_render_all(tmp_path)
@@ -181,9 +182,10 @@ class TestRenderAll:
         run_render_all(tmp_path)
         assert (tmp_path / "transfer_costs.png").exists()
 
-    def test_position_breakdown_png_produced(self, tmp_path):
+    def test_position_breakdown_pngs_produced(self, tmp_path):
         run_render_all(tmp_path)
-        assert (tmp_path / "position_breakdown.png").exists()
+        for zone in ("defence", "midfield", "attack"):
+            assert (tmp_path / f"position_{zone}.png").exists()
 
     def test_consistency_png_produced(self, tmp_path):
         run_render_all(tmp_path)
@@ -206,12 +208,14 @@ class TestRenderAll:
         run_render_all(tmp_path)
         assert (tmp_path / "cumulative_points.png").exists()
 
-    def test_all_thirteen_pngs_produced(self, tmp_path):
+    def test_all_pngs_produced(self, tmp_path):
         run_render_all(tmp_path)
         expected = {
             "legend.png",
-            "wins_losses.png", "bench_points.png", "transfer_costs.png",
-            "position_breakdown.png", "consistency.png",
+            "wins.png", "losses.png",
+            "bench_points.png", "transfer_costs.png",
+            "position_defence.png", "position_midfield.png", "position_attack.png",
+            "consistency.png",
             "chip_bench_boost.png", "chip_triple_captain.png",
             "chip_free_hit.png", "chip_wildcard.png",
             "weekly_scores.png", "league_position.png", "cumulative_points.png",
@@ -225,7 +229,7 @@ class TestRenderAll:
 
     def test_single_manager_league(self, tmp_path):
         run_render_all(tmp_path, names=["Adam"])
-        assert (tmp_path / "wins_losses.png").exists()
+        assert (tmp_path / "wins.png").exists()
 
     def test_large_league(self, tmp_path):
         names = [f"Manager{i}" for i in range(1, 13)]

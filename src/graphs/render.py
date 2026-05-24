@@ -92,14 +92,23 @@ ROW_HEIGHT      = 0.9        # inches per manager row for bar charts
 ROW_PADDING     = 0.9        # extra inches for title + axis
 BAR_HEIGHT      = 0.55       # fraction of row height used by the bar itself
 
-AVATAR_SIZE_BAR  = 80        # px — avatar on bar chart tip
-AVATAR_SIZE_LINE = 52        # px — avatar on line chart endpoint
+AVATAR_SIZE_BAR    = 92        # px — total avatar incl. border on bar chart tip
+AVATAR_SIZE_LINE   = 52        # px — total avatar incl. border on line chart endpoint
+AVATAR_SIZE_LEGEND = 80        # px — avatar on the legend cover sheet (no border)
 AVATAR_ZOOM_BAR  = 0.37      # OffsetImage zoom for bar charts
 AVATAR_ZOOM_LINE = 0.27      # OffsetImage zoom for line charts
 
+# Border thickness as a fraction of total avatar diameter.
+# Tuned so the inner picture stays roughly the original ~72 px (visually
+# unchanged from the pre-border avatar) and the colour ring sits just
+# outside it. Avatar overflows the bar a touch, which is fine; making it
+# any wider crowds the manager name label on zero-value bars.
+AVATAR_BORDER_RATIO_BAR  = 0.09
+AVATAR_BORDER_RATIO_LINE = 0.15
+
 LINE_WIDTH      = 2.5
-GLOW_WIDTH      = 8
-GLOW_ALPHA      = 0.18
+GLOW_WIDTH      = 5
+GLOW_ALPHA      = 0.10
 
 # How far right to extend the x-axis beyond the longest bar,
 # expressed as a fraction of the max value. This leaves room for
@@ -116,6 +125,8 @@ def load_avatar(
     display_name: str,
     colour: str,
     size: int = AVATAR_SIZE_BAR,
+    border_colour: Optional[str] = None,
+    border_ratio: float = 0.0,
 ) -> np.ndarray:
     """
     Load a circular avatar image as an RGBA numpy array.
@@ -123,30 +134,55 @@ def load_avatar(
     If `path` is None or the file can't be opened, falls back to a filled
     circle in `colour` with the manager's initials in white.
 
+    When `border_colour` is provided and `border_ratio > 0`, the avatar is
+    composited inside a coloured ring of `border_ratio * size` thickness.
+    The total output diameter is still `size`; the inner avatar is shrunk
+    to make room for the ring.
+
     Args:
-        path:         Absolute path to an image file, or None.
-        display_name: Used to generate initials for the fallback avatar.
-        colour:       Hex colour string for the fallback circle.
-        size:         Output size in pixels (square).
+        path:          Absolute path to an image file, or None.
+        display_name:  Used to generate initials for the fallback avatar.
+        colour:        Hex colour string for the fallback circle.
+        size:          Total output size in pixels (square), including border.
+        border_colour: Hex colour for the surrounding ring, or None for no ring.
+        border_ratio:  Border thickness as a fraction of `size`. Ignored when
+                       `border_colour` is None.
 
     Returns:
         RGBA numpy array of shape (size, size, 4).
     """
+    has_border = border_colour is not None and border_ratio > 0
+    if has_border:
+        border_px = max(1, int(round(size * border_ratio)))
+        inner_size = size - 2 * border_px
+    else:
+        inner_size = size
+
     img: Optional[Image.Image] = None
 
     if path is not None:
         try:
             img = Image.open(path).convert("RGBA").resize(
-                (size, size), Image.LANCZOS
+                (inner_size, inner_size), Image.LANCZOS
             )
         except Exception as e:
             print(f"Warning: could not load avatar from {path}: {e}")
             img = None
 
     if img is None:
-        img = _make_initials_avatar(display_name, colour, size)
+        img = _make_initials_avatar(display_name, colour, inner_size)
 
-    return _apply_circular_mask(img)
+    inner_img = _apply_circular_mask(img)
+
+    if not has_border:
+        return np.array(inner_img)
+
+    # Solid square fill so the outer AA mask blends with border colour
+    # instead of transparent corners.
+    canvas = Image.new("RGBA", (size, size), border_colour)
+    canvas.paste(inner_img, (border_px, border_px), inner_img)
+    canvas = _apply_circular_mask(canvas)
+    return np.array(canvas)
 
 
 def _make_initials_avatar(
@@ -155,13 +191,14 @@ def _make_initials_avatar(
     size: int,
 ) -> Image.Image:
     """
-    Create a solid-colour circle with up to two initials centred on it.
-    """
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+    Create a solid-colour square with up to two initials centred on it.
 
-    # Filled circle
-    draw.ellipse([0, 0, size - 1, size - 1], fill=colour)
+    The square is later clipped to a circle by `_apply_circular_mask`. The
+    full-square fill (rather than an `ellipse` fill) ensures the anti-aliased
+    mask edge has solid colour to blend into instead of transparent corners.
+    """
+    img = Image.new("RGBA", (size, size), colour)
+    draw = ImageDraw.Draw(img)
 
     # Initials
     words = display_name.split()
@@ -189,20 +226,27 @@ def _make_initials_avatar(
     return img
 
 
-def _apply_circular_mask(img: Image.Image) -> np.ndarray:
+def _apply_circular_mask(img: Image.Image) -> Image.Image:
     """
     Apply a circular alpha mask to an RGBA image, making corners transparent.
-    Returns an RGBA numpy array.
+
+    The mask is rendered at 4x size and downsampled with LANCZOS so the
+    visible circle edge is anti-aliased. The caller is expected to have
+    filled the underlying RGB to the image edges (not just inside the
+    circle) so the anti-aliased band blends with solid colour rather than
+    bleeding through to transparent pixels.
     """
     img = img.convert("RGBA")
     size = img.size[0]
 
-    mask = Image.new("L", (size, size), 0)
+    ss = 4
+    mask = Image.new("L", (size * ss, size * ss), 0)
     draw = ImageDraw.Draw(mask)
-    draw.ellipse([0, 0, size - 1, size - 1], fill=255)
+    draw.ellipse([0, 0, size * ss - 1, size * ss - 1], fill=255)
+    mask = mask.resize((size, size), Image.LANCZOS)
 
     img.putalpha(mask)
-    return np.array(img)
+    return img
 
 
 def place_avatar(

@@ -162,14 +162,15 @@ class TestMakeInitialsAvatar:
 
 
 class TestApplyCircularMask:
-    def test_returns_numpy_array(self):
+    def test_returns_pil_image(self):
         img = Image.new("RGBA", (80, 80), (255, 0, 0, 255))
         result = render._apply_circular_mask(img)
-        assert isinstance(result, np.ndarray)
+        assert isinstance(result, Image.Image)
+        assert result.mode == "RGBA"
 
     def test_corners_are_transparent(self):
         img = Image.new("RGBA", (80, 80), (255, 0, 0, 255))
-        result = render._apply_circular_mask(img)
+        result = np.array(render._apply_circular_mask(img))
         assert result[0, 0, 3] == 0      # top-left
         assert result[0, 79, 3] == 0     # top-right
         assert result[79, 0, 3] == 0     # bottom-left
@@ -177,7 +178,7 @@ class TestApplyCircularMask:
 
     def test_centre_is_opaque(self):
         img = Image.new("RGBA", (80, 80), (255, 0, 0, 255))
-        result = render._apply_circular_mask(img)
+        result = np.array(render._apply_circular_mask(img))
         assert result[40, 40, 3] == 255
 
 

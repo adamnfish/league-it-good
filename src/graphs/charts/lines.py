@@ -73,7 +73,7 @@ def _render_line_chart(
         return
 
     # Figure is wider than bar charts — lines need horizontal room
-    fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 7))
+    fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 9))
     render.apply_line_style(fig, ax, title=title, ylabel=ylabel, subtitle=subtitle)
 
     all_gameweeks = sorted({gw for pts in series.values() for gw, _ in pts})
@@ -90,13 +90,15 @@ def _render_line_chart(
     if invert_y:
         ax.invert_yaxis()
 
-    # Sort managers so the highest final value is drawn last (on top)
-    # For inverted axes (rankings) lowest final value = best = drawn on top
+    # Sort managers so the end-of-period winner is drawn last (ends up on top).
+    # Non-inverted axes (points): winner has highest final value → sort ascending
+    # so the highest is last. Inverted axes (ranks): winner has lowest rank
+    # number → sort descending so rank 1 is last.
     def final_value(item: tuple) -> int:
         _, pts = item
         return pts[-1][1] if pts else 0
 
-    draw_order = sorted(series.items(), key=final_value, reverse=not invert_y)
+    draw_order = sorted(series.items(), key=final_value, reverse=invert_y)
 
     for fpl_name, data_points in draw_order:
         if not data_points:
@@ -110,6 +112,8 @@ def _render_line_chart(
             display_name,
             colour,
             size=render.AVATAR_SIZE_LINE,
+            border_colour=colour,
+            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
         )
 
         gws    = [gw for gw, _ in data_points]
@@ -270,6 +274,8 @@ def render_league_position(
             display_name,
             colour,
             size=render.AVATAR_SIZE_LINE,
+            border_colour=colour,
+            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
         )
 
         gws    = [gw   for gw, _ in data_points]

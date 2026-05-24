@@ -572,7 +572,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                     if player_data:
                         chip_returns['triple_captain'].append({
                             'manager': manager['player_name'],
-                            'player': fpl.get_player_name(pick['element'], bootstrap_data),
+                            'player': fpl.get_player_short_name(pick['element'], bootstrap_data),
                             'points': player_data['event_points']
                         })
                     break
