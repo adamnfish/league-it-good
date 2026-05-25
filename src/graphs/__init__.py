@@ -305,10 +305,16 @@ def _get_all_manager_names(
     """
     Return the FPL player_names of all managers in the league.
 
-    Reads from the first available gameweek's standings cache.
-    Falls back to an empty list if no data is available.
+    Reads from the latest available gameweek's standings cache so that managers
+    who joined mid-season are included — the first gameweek's roster would miss
+    them. Falls back to an empty list if no data is available.
+
+    This deliberately reflects the *final* standings, so it only includes
+    managers who stayed until the end; anyone who left mid-season is dropped. We
+    might consider a union of all managers across every gameweek in the future
+    if we want to retain past participants.
     """
-    for gameweek in gameweeks:
+    for gameweek in sorted(gameweeks, reverse=True):
         gw_data = stats_module.load_gameweek_data(league_id, gameweek)
         if gw_data:
             standings = gw_data["league_data"]["standings"]["results"]
