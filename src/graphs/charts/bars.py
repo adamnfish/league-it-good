@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Tuple
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 import numpy as np
 
 from ..config import LeagueConfig
@@ -72,10 +71,6 @@ def render_ranked_bar(
     ax.set_yticks(list(range(n_managers)))
     ax.set_yticklabels([])
     ax.invert_yaxis()
-
-    # Values on these charts are always integers (points, hit costs) — avoid
-    # matplotlib's default 0.0/2.5/5.0 fractional ticks.
-    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     for i, (fpl_name, value) in enumerate(data):
         manager_cfg = config.get_manager(fpl_name)

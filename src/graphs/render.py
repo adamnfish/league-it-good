@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib.figure
 import matplotlib.axes
 import numpy as np
-from matplotlib import font_manager
+from matplotlib import font_manager, ticker
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from PIL import Image, ImageDraw, ImageFont
 
@@ -428,6 +428,10 @@ def apply_bar_style(
 
     # X label
     ax.set_xlabel(xlabel, color=TEXT_SECONDARY, fontsize=10, labelpad=8)
+
+    # Values on these charts are always integers (points, counts, hit costs) —
+    # avoid matplotlib's default 0.0/2.5/5.0 fractional ticks on small ranges.
+    ax.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     # Title — top-left in accent colour, in figure coordinates so it sits
     # above the axes area and is consistent regardless of subplot layout
