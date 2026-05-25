@@ -111,6 +111,10 @@ AVATAR_BORDER_RATIO_LINE = 0.15
 # Empirical — tuned to clear AVATAR_SIZE_BAR at AVATAR_ZOOM_BAR.
 AVATAR_HALF_WIDTH_FRACTION = 0.025
 
+# A bar segment must be at least this fraction of x_max to hold its label
+# inside; narrower segments have their label drawn externally instead.
+SEGMENT_LABEL_MIN_WIDTH_FRACTION = 0.12
+
 LINE_WIDTH      = 2.5
 GLOW_WIDTH      = 5
 GLOW_ALPHA      = 0.10
@@ -647,9 +651,7 @@ def draw_segment_label(
         segment_width: Width of the segment in data units.
         x_max:         Chart x-axis maximum, used to determine "narrow" threshold.
     """
-    min_width_for_inside = x_max * 0.12
-
-    if segment_width >= min_width_for_inside:
+    if segment_label_fits(segment_width, x_max):
         ax.text(
             x_centre, y,
             label,
@@ -664,13 +666,44 @@ def draw_segment_label(
     else:
         # Place outside the segment, to the right of the bar's avatar so
         # the label doesn't sit under the avatar disc.
-        ax.text(
-            x_centre + segment_width / 2 + x_max * (AVATAR_HALF_WIDTH_FRACTION + 0.01), y,
-            label,
-            va="center",
-            ha="left",
-            color=TEXT_SECONDARY,
-            fontsize=8,
-            zorder=6,
-            clip_on=True,
-        )
+        segment_end = x_centre + segment_width / 2
+        draw_external_segment_labels(ax, x_tip=segment_end, y=y, labels=[label], x_max=x_max)
+
+
+def segment_label_fits(segment_width: float, x_max: float) -> bool:
+    """True if a label fits comfortably inside a segment of this width."""
+    return segment_width >= x_max * SEGMENT_LABEL_MIN_WIDTH_FRACTION
+
+
+def draw_external_segment_labels(
+    ax: matplotlib.axes.Axes,
+    x_tip: float,
+    y: float,
+    labels: list[str],
+    x_max: float,
+) -> None:
+    """
+    Draw segment label(s) on one line just to the right of a bar tip.
+
+    Used when segments are too narrow to hold their label inside. Placing them
+    past the bar tip (the avatar) keeps them off neighbouring segments — narrow
+    segments mean a short bar, so there's empty track to the right. Multiple
+    labels are joined with a vertical-bar divider so each usage reads distinctly.
+
+    Args:
+        ax:     The Axes to draw on.
+        x_tip:  Data x of the bar tip (the rightmost segment end / avatar).
+        y:      Bar y-position (manager row index).
+        labels: Labels to place, in chronological order.
+        x_max:  Chart x-axis maximum, for avatar-clearance offset.
+    """
+    if not labels:
+        return
+
+    x = x_tip + x_max * (AVATAR_HALF_WIDTH_FRACTION + 0.01)
+    ax.text(
+        x, y,
+        "   |   ".join(labels),
+        va="center", ha="left",
+        color=TEXT_SECONDARY, fontsize=8, zorder=6, clip_on=True,
+    )

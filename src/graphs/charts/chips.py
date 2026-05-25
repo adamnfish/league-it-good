@@ -205,6 +205,11 @@ def render_chip_chart(
         # 1. Grey background track the full width of the chart
         render.draw_bar_track(ax, y=i, width=x_max)
 
+        # Labels for segments too narrow to hold text inside; rendered together
+        # to the right of the avatar after the bar so they don't land on a
+        # following segment.
+        overflow_labels: List[str] = []
+
         if record["total"] == 0:
             # Unused — muted label inside the track, placed past the
             # zero-value avatar so it isn't obscured by the avatar disc.
@@ -249,21 +254,34 @@ def render_chip_chart(
                     )
 
                 label = _format_segment_label(points, gameweek, player_name)
-                segment_centre = left + points / 2
-                render.draw_segment_label(
-                    ax,
-                    x_centre=segment_centre,
-                    y=i,
-                    label=label,
-                    segment_width=points,
-                    x_max=x_max,
-                )
+                if render.segment_label_fits(points, x_max):
+                    render.draw_segment_label(
+                        ax,
+                        x_centre=left + points / 2,
+                        y=i,
+                        label=label,
+                        segment_width=points,
+                        x_max=x_max,
+                    )
+                else:
+                    overflow_labels.append(label)
 
                 left += points
 
         # 3. Avatar centred on the bar's total value
         #    Zero-value bars: avatar centre sits on the y-axis
         render.place_avatar(ax, x=record["total"], y=i, avatar_rgba=avatar)
+
+        # 3b. Narrow-segment labels, placed in the clear track to the right of
+        #     the avatar (the bar tip) so they never overlap a later segment.
+        if overflow_labels:
+            render.draw_external_segment_labels(
+                ax,
+                x_tip=record["total"],
+                y=i,
+                labels=overflow_labels,
+                x_max=x_max,
+            )
 
         # 4. Manager name to the left of the axis
         render.draw_manager_label(
