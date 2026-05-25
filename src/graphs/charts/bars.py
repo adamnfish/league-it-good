@@ -43,6 +43,7 @@ def render_ranked_bar(
     output_path: Path,
     xlabel: str = "Points",
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a single horizontal bar per manager, sorted by value.
@@ -61,7 +62,9 @@ def render_ranked_bar(
 
     n_managers = len(data)
     fig, ax = render.make_bar_figure(n_managers)
-    render.apply_bar_style(fig, ax, title=title, xlabel=xlabel, subtitle=subtitle)
+    render.apply_bar_style(
+        fig, ax, title=title, xlabel=xlabel, subtitle=subtitle, description=description,
+    )
 
     max_value = max(v for _, v in data) if data else 1
     x_max = max(max_value * (1 + render.X_PADDING_FRACTION), 10)
@@ -128,6 +131,7 @@ def render_consistency_bar(
     config: LeagueConfig,
     output_path: Path,
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a bar chart showing scoring consistency per manager.
@@ -150,10 +154,11 @@ def render_consistency_bar(
     if not consistency:
         return
 
-    # Sort by std ascending — most consistent (lowest std) at the top
+    # Sort by mean descending — highest average weekly score at the top
     sorted_managers = sorted(
         consistency.items(),
-        key=lambda item: item[1]["std"],
+        key=lambda item: item[1]["mean"],
+        reverse=True,
     )
 
     n_managers = len(sorted_managers)
@@ -163,6 +168,7 @@ def render_consistency_bar(
         title="Scoring Consistency",
         xlabel="Points",
         subtitle=subtitle,
+        description=description,
     )
 
     max_high = max(v["high"] for _, v in sorted_managers) if sorted_managers else 1

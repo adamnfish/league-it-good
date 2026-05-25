@@ -51,6 +51,10 @@ def _render_line_chart(
     y_tick_formatter: Optional[ticker.Formatter] = None,
     final_value_fmt: str = "{v}",
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
+    per_point_avatar: bool = False,
+    height: float = 9,
+    space_end_labels: bool = False,
 ) -> None:
     """
     Core renderer shared by all three line chart types.
@@ -73,8 +77,10 @@ def _render_line_chart(
         return
 
     # Figure is wider than bar charts — lines need horizontal room
-    fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 9))
-    render.apply_line_style(fig, ax, title=title, ylabel=ylabel, subtitle=subtitle)
+    fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, height))
+    render.apply_line_style(
+        fig, ax, title=title, ylabel=ylabel, subtitle=subtitle, description=description,
+    )
 
     all_gameweeks = sorted({gw for pts in series.values() for gw, _ in pts})
     if not all_gameweeks:
@@ -83,6 +89,17 @@ def _render_line_chart(
 
     ax.set_xticks(all_gameweeks)
     ax.set_xlim(all_gameweeks[0] - 0.5, all_gameweeks[-1] + 1.5)
+
+    # AnnotationBbox artists don't drive autoscaling, so when we render
+    # purely with per-point avatars the y-axis collapses to a default
+    # 0–1 range. Set the limits explicitly from the data.
+    if per_point_avatar:
+        all_values = [v for points in series.values() for _, v in points]
+        if all_values:
+            y_min = min(all_values)
+            y_max = max(all_values)
+            y_pad = max((y_max - y_min) * 0.05, 1)
+            ax.set_ylim(y_min - y_pad, y_max + y_pad)
 
     if y_tick_formatter:
         ax.yaxis.set_major_formatter(y_tick_formatter)
@@ -99,6 +116,21 @@ def _render_line_chart(
         return pts[-1][1] if pts else 0
 
     draw_order = sorted(series.items(), key=final_value, reverse=invert_y)
+
+    # Track end-label artists for optional de-collision below.
+    end_label_artists: list[tuple[float, "matplotlib.text.Annotation"]] = []
+
+    # For per-point avatars: pre-compute per-gameweek zorder so the highest
+    # scorer that week is drawn last (on top) when avatars overlap.
+    gw_zorder: dict[int, dict[str, float]] = {}
+    if per_point_avatar:
+        for gw in all_gameweeks:
+            scores_at_gw = [
+                (name, v) for name, pts in series.items()
+                for g, v in pts if g == gw
+            ]
+            scores_at_gw.sort(key=lambda nv: nv[1])
+            gw_zorder[gw] = {name: 10 + idx for idx, (name, _) in enumerate(scores_at_gw)}
 
     for fpl_name, data_points in draw_order:
         if not data_points:
@@ -118,6 +150,22 @@ def _render_line_chart(
 
         gws    = [gw for gw, _ in data_points]
         values = [v  for _,  v in data_points]
+
+        if per_point_avatar:
+            # No connecting line — treat each gameweek as an independent
+            # data point. Place an avatar at every (gw, value); the
+            # per-gameweek zorder ensures the highest scorer that week
+            # sits on top when avatars overlap.
+            for gw_i, val_i in zip(gws, values):
+                render.place_avatar(
+                    ax,
+                    x=gw_i,
+                    y=val_i,
+                    avatar_rgba=avatar,
+                    zoom=render.AVATAR_ZOOM_LINE,
+                    zorder=gw_zorder[gw_i][fpl_name],
+                )
+            continue
 
         # Glow pass — thick, low alpha
         ax.plot(
@@ -164,7 +212,7 @@ def _render_line_chart(
 
         # Final value annotation just to the right of the avatar
         # Offset in data units: ~0.6 gameweeks right, nudged up slightly
-        ax.annotate(
+        ann = ax.annotate(
             final_value_fmt.format(v=final_value_v),
             xy=(final_gw, final_value_v),
             xytext=(final_gw + 0.55, final_value_v),
@@ -175,9 +223,28 @@ def _render_line_chart(
             fontweight="bold",
             zorder=6,
         )
+        end_label_artists.append((final_value_v, ann))
+
+    if space_end_labels and end_label_artists:
+        # Bump labels apart vertically so close finals don't overlap.
+        # Iterate from the bottom up: each label sits at max(its own y, prev + min_gap).
+        y_lo, y_hi = ax.get_ylim()
+        axis_span = abs(y_hi - y_lo)
+        min_gap = axis_span * 0.025
+        sorted_labels = sorted(end_label_artists, key=lambda p: p[0])
+        prev_y = float("-inf")
+        for orig_y, ann in sorted_labels:
+            target_y = max(orig_y, prev_y + min_gap)
+            if target_y != orig_y:
+                x, _ = ann.xyann
+                ann.xyann = (x, target_y)
+            prev_y = target_y
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
-    render.save_figure(fig, output_path)
+    # Many per-point AnnotationBbox artists confuse matplotlib's
+    # bbox_inches="tight" calculation — it balloons the saved canvas to
+    # tens of thousands of pixels. Use the figure's natural size instead.
+    render.save_figure(fig, output_path, tight_bbox=not per_point_avatar)
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +256,7 @@ def render_weekly_scores(
     config: LeagueConfig,
     output_path: Path,
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a line chart of raw points scored each gameweek per manager.
@@ -211,6 +279,8 @@ def render_weekly_scores(
         invert_y=False,
         final_value_fmt="{v}pts",
         subtitle=subtitle,
+        description=description,
+        per_point_avatar=True,
     )
 
 
@@ -219,6 +289,7 @@ def render_league_position(
     config: LeagueConfig,
     output_path: Path,
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a line chart of mini-league position at the end of each gameweek.
@@ -241,7 +312,13 @@ def render_league_position(
     n_managers = max(all_ranks) if all_ranks else 1
 
     fig, ax = plt.subplots(figsize=(render.FIGURE_WIDTH, 7))
-    render.apply_line_style(fig, ax, title="League Position", ylabel="Position", subtitle=subtitle)
+    render.apply_line_style(
+        fig, ax,
+        title="League Position",
+        ylabel="Position",
+        subtitle=subtitle,
+        description=description,
+    )
 
     all_gameweeks = sorted({gw for pts in series.values() for gw, _ in pts})
     if not all_gameweeks:
@@ -273,9 +350,9 @@ def render_league_position(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_LINE,
+            size=render.AVATAR_SIZE_BAR,
             border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
+            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
         )
 
         gws    = [gw   for gw, _ in data_points]
@@ -296,18 +373,16 @@ def render_league_position(
         final_gw   = gws[-1]
         final_rank_v = values[-1]
         render.place_avatar(ax, x=final_gw, y=final_rank_v,
-                            avatar_rgba=avatar, zoom=render.AVATAR_ZOOM_LINE)
+                            avatar_rgba=avatar, zoom=render.AVATAR_ZOOM_BAR)
 
-        # Ordinal suffix for rank annotation: 1st, 2nd, 3rd, 4th…
-        suffix = _ordinal_suffix(final_rank_v)
         ax.annotate(
-            f"{final_rank_v}{suffix}",
+            display_name,
             xy=(final_gw, final_rank_v),
-            xytext=(final_gw + 0.55, final_rank_v),
+            xytext=(final_gw + 0.9, final_rank_v),
             va="center",
             ha="left",
             color=colour,
-            fontsize=8,
+            fontsize=10,
             fontweight="bold",
             zorder=6,
         )
@@ -321,6 +396,7 @@ def render_cumulative_points(
     config: LeagueConfig,
     output_path: Path,
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a running total points race chart — the classic season arc.
@@ -344,6 +420,9 @@ def render_cumulative_points(
         invert_y=False,
         final_value_fmt="{v}pts",
         subtitle=subtitle,
+        description=description,
+        height=11,
+        space_end_labels=True,
     )
 
 

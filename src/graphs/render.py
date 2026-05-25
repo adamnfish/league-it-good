@@ -106,6 +106,11 @@ AVATAR_ZOOM_LINE = 0.27      # OffsetImage zoom for line charts
 AVATAR_BORDER_RATIO_BAR  = 0.09
 AVATAR_BORDER_RATIO_LINE = 0.15
 
+# Approx half-width of a bar-tip avatar, expressed as a fraction of x_max.
+# Used to position labels past the avatar that would otherwise sit under it.
+# Empirical — tuned to clear AVATAR_SIZE_BAR at AVATAR_ZOOM_BAR.
+AVATAR_HALF_WIDTH_FRACTION = 0.025
+
 LINE_WIDTH      = 2.5
 GLOW_WIDTH      = 5
 GLOW_ALPHA      = 0.10
@@ -255,6 +260,7 @@ def place_avatar(
     y: float,
     avatar_rgba: np.ndarray,
     zoom: float = AVATAR_ZOOM_BAR,
+    zorder: float = 10,
 ) -> None:
     """
     Place a circular avatar image centred on the data coordinate (x, y).
@@ -270,6 +276,9 @@ def place_avatar(
         avatar_rgba: RGBA numpy array from load_avatar().
         zoom:        OffsetImage zoom factor. Use AVATAR_ZOOM_BAR for bar
                      charts and AVATAR_ZOOM_LINE for line charts.
+        zorder:      Stacking order — higher draws on top of lower. Default
+                     puts avatars above lines/bars; callers can stagger this
+                     to control overlap between avatars themselves.
     """
     imagebox = OffsetImage(avatar_rgba, zoom=zoom)
     imagebox.image.axes = ax
@@ -279,7 +288,7 @@ def place_avatar(
         frameon=False,
         box_alignment=(0.5, 0.5),
         pad=0,
-        zorder=10,
+        zorder=zorder,
     )
     ax.add_artist(ab)
 
@@ -370,6 +379,7 @@ def apply_bar_style(
     title: str,
     xlabel: str = "Points",
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Apply the standard dark style to a horizontal bar chart.
@@ -378,12 +388,14 @@ def apply_bar_style(
     styles tick labels, and draws the chart title in the accent colour.
 
     Args:
-        fig:      The Figure to style.
-        ax:       The Axes to style.
-        title:    Chart title — displayed top-left in accent colour.
-        xlabel:   X-axis label.
-        subtitle: Optional secondary line beneath the title (e.g. league + GW range),
-                  rendered in TEXT_SECONDARY.
+        fig:         The Figure to style.
+        ax:          The Axes to style.
+        title:       Chart title — displayed top-left in accent colour.
+        xlabel:      X-axis label.
+        subtitle:    Optional secondary line beneath the title (e.g. league + GW range),
+                     rendered in TEXT_SECONDARY.
+        description: Optional short sentence describing what the chart shows,
+                     rendered top-right in TEXT_SECONDARY at modest size.
     """
     fig.patch.set_facecolor(BACKGROUND)
     ax.set_facecolor(BACKGROUND)
@@ -428,6 +440,17 @@ def apply_bar_style(
             transform=fig.transFigure,
         )
 
+    if description:
+        fig.text(
+            0.96, 0.97,
+            description,
+            color=TEXT_SECONDARY,
+            fontsize=10,
+            va="top",
+            ha="right",
+            transform=fig.transFigure,
+        )
+
 
 def apply_line_style(
     fig: matplotlib.figure.Figure,
@@ -435,17 +458,20 @@ def apply_line_style(
     title: str,
     ylabel: str = "",
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Apply the standard dark style to a line (time series) chart.
 
     Args:
-        fig:      The Figure to style.
-        ax:       The Axes to style.
-        title:    Chart title — displayed top-left in accent colour.
-        ylabel:   Y-axis label.
-        subtitle: Optional secondary line beneath the title (e.g. league + GW range),
-                  rendered in TEXT_SECONDARY.
+        fig:         The Figure to style.
+        ax:          The Axes to style.
+        title:       Chart title — displayed top-left in accent colour.
+        ylabel:      Y-axis label.
+        subtitle:    Optional secondary line beneath the title (e.g. league + GW range),
+                     rendered in TEXT_SECONDARY.
+        description: Optional short sentence describing what the chart shows,
+                     rendered top-right in TEXT_SECONDARY at modest size.
     """
     fig.patch.set_facecolor(BACKGROUND)
     ax.set_facecolor(BACKGROUND)
@@ -485,10 +511,22 @@ def apply_line_style(
             transform=fig.transFigure,
         )
 
+    if description:
+        fig.text(
+            0.96, 0.97,
+            description,
+            color=TEXT_SECONDARY,
+            fontsize=10,
+            va="top",
+            ha="right",
+            transform=fig.transFigure,
+        )
+
 
 def save_figure(
     fig: matplotlib.figure.Figure,
     output_path: Path,
+    tight_bbox: bool = True,
 ) -> None:
     """
     Save a figure to disk and close it to free memory.
@@ -496,12 +534,16 @@ def save_figure(
     Args:
         fig:         The Figure to save.
         output_path: Destination path (should end in .png).
+        tight_bbox:  When True (default) trim to a tight bounding box around
+                     all drawn artists. Set False for figures with many
+                     AnnotationBbox/OffsetImage artists where the tight-bbox
+                     calculation balloons the saved canvas.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(
         output_path,
         dpi=FIGURE_DPI,
-        bbox_inches="tight",
+        bbox_inches="tight" if tight_bbox else None,
         facecolor=BACKGROUND,
     )
     plt.close(fig)
@@ -605,9 +647,10 @@ def draw_segment_label(
             clip_on=True,
         )
     else:
-        # Place outside the segment, to the right
+        # Place outside the segment, to the right of the bar's avatar so
+        # the label doesn't sit under the avatar disc.
         ax.text(
-            x_centre + segment_width / 2 + x_max * 0.01, y,
+            x_centre + segment_width / 2 + x_max * (AVATAR_HALF_WIDTH_FRACTION + 0.01), y,
             label,
             va="center",
             ha="left",

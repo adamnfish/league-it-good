@@ -54,6 +54,28 @@ CHART_DESCRIPTIONS: Dict[str, str] = {
 CHART_NAMES: Tuple[str, ...] = tuple(CHART_DESCRIPTIONS.keys())
 
 
+# Short on-chart blurbs rendered top-right of each PNG. Distinct from
+# CHART_DESCRIPTIONS, which is for CLI --list / help text. Keep these
+# terse — they describe what the chart shows for a reader glancing at it.
+CHART_BLURBS: Dict[str, str] = {
+    "wins":              "Number of times each manager scored the highest gameweek total",
+    "losses":            "Number of times each manager scored the lowest gameweek total",
+    "bench_points":      "Total points scored by unused substitutes",
+    "transfer_costs":    "Points deducted from extra transfers (–4 per hit)",
+    "position_defence":  "Points contributed by each manager's defenders and goalkeeper",
+    "position_midfield": "Points contributed by each manager's midfielders",
+    "position_attack":   "Points contributed by each manager's forwards",
+    "consistency":       "Average weekly score with best-to-worst single-week range",
+    "chip_bench_boost":  "Best single returns from the Bench Boost chip",
+    "chip_triple_captain":"Best single returns from the Triple Captain chip",
+    "chip_free_hit":     "Best single returns from the Free Hit chip",
+    "chip_wildcard":     "Best single returns from the Wildcard chip",
+    "weekly_scores":     "Raw points scored by each manager each gameweek",
+    "league_position":   "Mini-league rank at the end of each gameweek",
+    "cumulative_points": "Running points total across the season",
+}
+
+
 def build_chart_dispatch(
     league_id: int,
     gameweeks: List[int],
@@ -139,6 +161,7 @@ def build_chart_dispatch(
             output_path=output_dir / "wins.png",
             xlabel="Wins",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("wins"),
         ),
         "losses": lambda: render_ranked_bar(
             title="Gameweek Losses",
@@ -151,6 +174,7 @@ def build_chart_dispatch(
             output_path=output_dir / "losses.png",
             xlabel="Losses",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("losses"),
         ),
         "bench_points": lambda: render_ranked_bar(
             title="Bench Points Left on Bench",
@@ -159,6 +183,7 @@ def build_chart_dispatch(
             output_path=output_dir / "bench_points.png",
             xlabel="Points",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("bench_points"),
         ),
         "transfer_costs": lambda: render_ranked_bar(
             title="Transfer Costs (Points Lost to Hits)",
@@ -167,6 +192,7 @@ def build_chart_dispatch(
             output_path=output_dir / "transfer_costs.png",
             xlabel="Points Lost",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("transfer_costs"),
         ),
         "position_defence": lambda: render_ranked_bar(
             title="Points by Defence (GK + DEF)",
@@ -176,6 +202,7 @@ def build_chart_dispatch(
             output_path=output_dir / "position_defence.png",
             xlabel="Points",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("position_defence"),
         ),
         "position_midfield": lambda: render_ranked_bar(
             title="Points by Midfield",
@@ -185,6 +212,7 @@ def build_chart_dispatch(
             output_path=output_dir / "position_midfield.png",
             xlabel="Points",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("position_midfield"),
         ),
         "position_attack": lambda: render_ranked_bar(
             title="Points by Attack",
@@ -194,30 +222,35 @@ def build_chart_dispatch(
             output_path=output_dir / "position_attack.png",
             xlabel="Points",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("position_attack"),
         ),
         "consistency": lambda: render_consistency_bar(
             consistency=timeseries()["consistency"],
             config=config,
             output_path=output_dir / "consistency.png",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("consistency"),
         ),
         "weekly_scores": lambda: render_weekly_scores(
             series=timeseries()["weekly_scores"],
             config=config,
             output_path=output_dir / "weekly_scores.png",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("weekly_scores"),
         ),
         "league_position": lambda: render_league_position(
             series=timeseries()["weekly_rankings"],
             config=config,
             output_path=output_dir / "league_position.png",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("league_position"),
         ),
         "cumulative_points": lambda: render_cumulative_points(
             series=timeseries()["cumulative_points"],
             config=config,
             output_path=output_dir / "cumulative_points.png",
             subtitle=subtitle,
+            description=CHART_BLURBS.get("cumulative_points"),
         ),
     }
 
@@ -232,6 +265,7 @@ def build_chart_dispatch(
                 output_path=output_dir / f"{key}.png",
                 is_triple_captain=is_tc,
                 subtitle=subtitle,
+                description=CHART_BLURBS.get(key),
             )
         )
 

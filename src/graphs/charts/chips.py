@@ -146,6 +146,7 @@ def render_chip_chart(
     output_path: Path,
     is_triple_captain: bool = False,
     subtitle: Optional[str] = None,
+    description: Optional[str] = None,
 ) -> None:
     """
     Render a chip return chart and save it as a PNG.
@@ -167,7 +168,12 @@ def render_chip_chart(
         return
 
     fig, ax = render.make_bar_figure(n_managers)
-    render.apply_bar_style(fig, ax, title=f"Chip Returns · {chip_name}", subtitle=subtitle)
+    render.apply_bar_style(
+        fig, ax,
+        title=f"Chip Returns · {chip_name}",
+        subtitle=subtitle,
+        description=description,
+    )
 
     # X axis: scale to the highest total, padded for avatar overlap
     max_total = max((r["total"] for r in records), default=1)
@@ -200,9 +206,10 @@ def render_chip_chart(
         render.draw_bar_track(ax, y=i, width=x_max)
 
         if record["total"] == 0:
-            # Unused — muted label inside the track
+            # Unused — muted label inside the track, placed past the
+            # zero-value avatar so it isn't obscured by the avatar disc.
             ax.text(
-                x_max * 0.02, i,
+                x_max * (render.AVATAR_HALF_WIDTH_FRACTION + 0.01), i,
                 "unused",
                 va="center",
                 ha="left",

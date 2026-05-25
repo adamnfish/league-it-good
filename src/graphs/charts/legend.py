@@ -126,7 +126,7 @@ def render_legend(
     )
     subtitle = f"Season {season}  ·  Gameweeks {first_gw}–{last_gw}"
     fig.text(
-        0.06, header_top_y - (0.40 / fig_height),
+        0.06, header_top_y - (0.85 / fig_height),
         subtitle,
         color=render.TEXT_SECONDARY,
         fontsize=14,
@@ -170,6 +170,8 @@ def render_legend(
             manager.display_name,
             manager.colour,
             size=render.AVATAR_SIZE_LEGEND,
+            border_colour=manager.colour,
+            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
         )
         render.place_avatar(
             ax,
