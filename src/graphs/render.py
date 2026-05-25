@@ -190,6 +190,16 @@ def load_avatar(
     return np.array(canvas)
 
 
+def _lighten_colour(hex_colour: str, factor: float = 0.65) -> str:
+    """Blend a hex colour toward white by `factor` (0 = unchanged, 1 = white)."""
+    hex_colour = hex_colour.lstrip("#")
+    r, g, b = (int(hex_colour[i:i+2], 16) for i in (0, 2, 4))
+    r = round(r + (255 - r) * factor)
+    g = round(g + (255 - g) * factor)
+    b = round(b + (255 - b) * factor)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 def _make_initials_avatar(
     display_name: str,
     colour: str,
@@ -202,7 +212,8 @@ def _make_initials_avatar(
     full-square fill (rather than an `ellipse` fill) ensures the anti-aliased
     mask edge has solid colour to blend into instead of transparent corners.
     """
-    img = Image.new("RGBA", (size, size), colour)
+    bg_colour = _lighten_colour(colour)
+    img = Image.new("RGBA", (size, size), bg_colour)
     draw = ImageDraw.Draw(img)
 
     # Initials
@@ -225,7 +236,7 @@ def _make_initials_avatar(
         initials,
         font=font,
         anchor="mm",
-        fill="#ffffff",
+        fill=colour,
     )
 
     return img
