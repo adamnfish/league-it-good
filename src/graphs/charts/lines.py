@@ -132,6 +132,29 @@ def _render_line_chart(
             scores_at_gw.sort(key=lambda nv: nv[1])
             gw_zorder[gw] = {name: 10 + idx for idx, (name, _) in enumerate(scores_at_gw)}
 
+            # Vertical connector spanning that gameweek's lowest to highest
+            # score. Ties the week's avatars together and makes the spread of
+            # scores legible at a glance. Neutral colour, drawn behind the
+            # avatars (zorder < 10), with the same glow treatment as the lines.
+            if len(scores_at_gw) >= 2:
+                lo, hi = scores_at_gw[0][1], scores_at_gw[-1][1]
+                ax.plot(
+                    [gw, gw], [lo, hi],
+                    color=render.TEXT_SECONDARY,
+                    linewidth=render.GLOW_WIDTH,
+                    alpha=render.GLOW_ALPHA,
+                    zorder=1,
+                    solid_capstyle="round",
+                )
+                ax.plot(
+                    [gw, gw], [lo, hi],
+                    color=render.TEXT_SECONDARY,
+                    linewidth=1.5,
+                    alpha=0.45,
+                    zorder=2,
+                    solid_capstyle="round",
+                )
+
     for fpl_name, data_points in draw_order:
         if not data_points:
             continue
