@@ -13,6 +13,16 @@ A Python tool for generating comprehensive Fantasy Premier League gameweek summa
   - Bench points tracking with bench boost highlights
   - Best differential picks
   - Transfer analysis with wildcard indicators (requires previous gameweek data)
+- Season-long statistics (`lig stats`) across all cached gameweeks:
+  - Most gameweek wins
+  - Best positional scores (defence / midfield / attack)
+  - Highest points left on the bench
+  - Best chip returns
+  - Most points spent on transfer hits
+- Visual charts (`lig graphs`) rendered as PNGs:
+  - Weekly scores, league position, and cumulative points across the season
+  - Wins/losses, bench points, transfer costs, positional and consistency breakdowns
+  - Per-chip return charts
 - Administrative tools:
   - League cache management
   - Skipped section notifications
@@ -44,6 +54,12 @@ lig gen --league-id YOUR_LEAGUE_ID --gameweek 1
 
 # Or use the full name
 league-it-good gen --league-id YOUR_LEAGUE_ID --gameweek 1
+
+# Fetch and cache data for a gameweek (a single league, or all cached leagues with --all)
+lig fetch --league-id YOUR_LEAGUE_ID --gameweek 1
+
+# Season-long aggregate statistics across cached gameweeks
+lig stats --league-id YOUR_LEAGUE_ID
 
 # List cached leagues and their available gameweeks
 lig leagues
