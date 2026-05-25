@@ -230,7 +230,10 @@ def _render_line_chart(
         # Iterate from the bottom up: each label sits at max(its own y, prev + min_gap).
         y_lo, y_hi = ax.get_ylim()
         axis_span = abs(y_hi - y_lo)
-        min_gap = axis_span * 0.025
+        # Minimum vertical gap between end-labels, as a fraction of the y-axis
+        # span. Lower = labels sit closer to their avatars; higher = more
+        # separation but more disconnected. Tune this to taste.
+        min_gap = axis_span * 0.015
         sorted_labels = sorted(end_label_artists, key=lambda p: p[0])
         prev_y = float("-inf")
         for orig_y, ann in sorted_labels:
