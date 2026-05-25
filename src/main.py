@@ -96,13 +96,6 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     
     league_name = league_data['league']['name']
     standings = league_data['standings']['results']
-    
-    # Sort by rank
-    standings.sort(key=lambda x: x['rank'])
-    
-    # Get position changes from previous gameweek
-    previous_standings = fpl.get_previous_league_standings(league_id, gameweek)
-    position_changes = analysis.calculate_position_changes(standings, previous_standings)
 
     # Analyze captain choices
     print("🔄 Fetching captain details...")
@@ -146,6 +139,17 @@ def generate_summary(league_id: int, gameweek: int) -> str:
             if record:
                 manager['event_total'] = record['event_total']
                 manager['total'] = record['total']
+
+    # Order the table and derive position changes from the now-reliable cumulative
+    # totals. calculate_proper_ranks assumes its input is sorted by total desc, and
+    # the previous week's totals come from the same gameweek-pinned picks cache.
+    standings.sort(key=lambda m: m['total'], reverse=True)
+    previous_records = None
+    if gameweek > 1:
+        previous_records = fpl.load_gameweek_scores(league_id, gameweek - 1)
+        if previous_records:
+            previous_records.sort(key=lambda m: m['total'], reverse=True)
+    position_changes = analysis.calculate_position_changes(standings, previous_records)
 
     # Identify current gameweek winner(s)
     highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']

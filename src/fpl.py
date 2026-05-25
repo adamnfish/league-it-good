@@ -110,29 +110,6 @@ def load_previous_gameweek_data(manager_id: int, gameweek: int) -> Optional[Dict
     return storage.load_from_cache(cache_path)
 
 
-def get_previous_league_standings(league_id: int, gameweek: int) -> Optional[list]:
-    """
-    Get previous gameweek league standings from cache only.
-    
-    Args:
-        league_id: League ID
-        gameweek: Current gameweek number
-    
-    Returns:
-        list: Previous standings results, or None if not available
-    """
-    if gameweek <= 1:
-        return None
-    
-    previous_gameweek = gameweek - 1
-    cache_path = storage.get_cache_path(previous_gameweek, "league", league_id=league_id)
-    
-    previous_data = storage.load_from_cache(cache_path)
-    if previous_data:
-        return previous_data['standings']['results']
-    return None
-
-
 # Tracks (league_id, gameweek, entry) rows already warned about this run, so the
 # stale-standings guard reports each once even though several stat functions read
 # the same gameweek.
