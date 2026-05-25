@@ -133,6 +133,91 @@ def get_previous_league_standings(league_id: int, gameweek: int) -> Optional[lis
     return None
 
 
+# Tracks (league_id, gameweek, entry) rows already warned about this run, so the
+# stale-standings guard reports each once even though several stat functions read
+# the same gameweek.
+_warned_stale_rows: set = set()
+
+
+def load_gameweek_scores(league_id: int, gameweek: int) -> Optional[list]:
+    """
+    Return per-manager score records for a single gameweek, with scores sourced
+    from the gameweek-pinned manager picks cache rather than the league
+    standings' event_total / total fields.
+
+    The league standings endpoint is fetched without a gameweek parameter, so
+    its event_total reflects whichever gameweek was live when the file was
+    written — wrong for any standings file captured at the wrong time (or
+    restored from a backup with mismatched contents). The manager picks endpoint
+    (entry/{id}/event/{gw}/picks/) is pinned to the gameweek, so its
+    entry_history.points / total_points are reliable.
+
+    Uses the standings only for league membership (entry -> name). For each
+    member, reads the score from the gameweek's manager cache. When a picks
+    value disagrees with the standings event_total a warning is printed
+    (surfacing stale caches); when a picks file is missing it warns and falls
+    back to the standings value.
+
+    Args:
+        league_id: League ID.
+        gameweek: Gameweek number.
+
+    Returns:
+        List of dicts mirroring the standings result shape, or None if the
+        league standings cache is missing. Each dict has keys:
+            'entry':       int — manager FPL entry id
+            'player_name': str — manager's name
+            'entry_name':  str — manager's team name
+            'event_total': int — gameweek points (authoritative)
+            'total':       int — cumulative points (authoritative)
+    """
+    league_path = storage.get_cache_path(gameweek, "league", league_id=league_id)
+    league_data = storage.load_from_cache(league_path)
+    if not league_data:
+        return None
+
+    records = []
+    for manager in league_data["standings"]["results"]:
+        entry = manager["entry"]
+        standings_event_total = manager["event_total"]
+        standings_total = manager["total"]
+
+        manager_path = storage.get_cache_path(gameweek, "manager", manager_id=entry)
+        manager_data = storage.load_from_cache(manager_path)
+        entry_history = (manager_data or {}).get("entry_history") or {}
+
+        if "points" in entry_history:
+            event_total = entry_history["points"]
+            total = entry_history.get("total_points", standings_total)
+            if event_total != standings_event_total:
+                row_key = (league_id, gameweek, entry)
+                if row_key not in _warned_stale_rows:
+                    _warned_stale_rows.add(row_key)
+                    print(
+                        f"⚠️  Stale standings: GW{gameweek} league {league_id} "
+                        f"{manager['player_name']} event_total={standings_event_total} "
+                        f"but picks points={event_total}; using picks value"
+                    )
+        else:
+            print(
+                f"⚠️  Missing picks: GW{gameweek} league {league_id} "
+                f"{manager['player_name']} (entry {entry}); "
+                f"falling back to standings event_total"
+            )
+            event_total = standings_event_total
+            total = standings_total
+
+        records.append({
+            "entry": entry,
+            "player_name": manager["player_name"],
+            "entry_name": manager.get("entry_name"),
+            "event_total": event_total,
+            "total": total,
+        })
+
+    return records
+
+
 def fetch_bootstrap_data(gameweek: Optional[int] = None) -> Optional[Dict[Any, Any]]:
     """
     Get general FPL data including player names with caching.

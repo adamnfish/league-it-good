@@ -115,8 +115,11 @@ def calculate_gameweek_wins(league_id: int, gameweeks: List[int]) -> Dict[str, A
     """
     Count gameweek wins per manager across all gameweeks.
 
-    A manager "wins" a gameweek if they have the highest event_total score
+    A manager "wins" a gameweek if they have the highest gameweek score
     for that gameweek. Ties count as wins for all tied managers.
+
+    Scores come from the gameweek-pinned manager picks cache via
+    fpl.load_gameweek_scores, not the league standings' volatile event_total.
 
     Args:
         league_id: League ID
@@ -132,17 +135,15 @@ def calculate_gameweek_wins(league_id: int, gameweeks: List[int]) -> Dict[str, A
     gameweeks_processed = 0
 
     for gameweek in gameweeks:
-        gw_data = load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        records = fpl.load_gameweek_scores(league_id, gameweek)
+        if not records:
             continue
 
-        standings = gw_data['league_data']['standings']['results']
-
         # Find max score for this gameweek
-        max_score = max(manager['event_total'] for manager in standings)
+        max_score = max(manager['event_total'] for manager in records)
 
         # Award win to all managers with max score (handles ties)
-        for manager in standings:
+        for manager in records:
             if manager['event_total'] == max_score:
                 manager_name = manager['player_name']
                 win_counts[manager_name] = win_counts.get(manager_name, 0) + 1

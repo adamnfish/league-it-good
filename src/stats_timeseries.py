@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Tuple
 
-from . import stats
+from . import fpl
 
 
 # Type aliases for clarity
@@ -36,8 +36,8 @@ def calculate_weekly_scores(
     """
     Return each manager's points scored in each gameweek.
 
-    Reads event_total from the league standings cache — no manager-level
-    cache files needed.
+    Scores come from the gameweek-pinned manager picks cache via
+    fpl.load_gameweek_scores, not the league standings' volatile event_total.
 
     Args:
         league_id: League ID.
@@ -51,12 +51,11 @@ def calculate_weekly_scores(
     series: WeeklySeries = {}
 
     for gameweek in gameweeks:
-        gw_data = stats.load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        records = fpl.load_gameweek_scores(league_id, gameweek)
+        if not records:
             continue
 
-        standings = gw_data["league_data"]["standings"]["results"]
-        for manager in standings:
+        for manager in records:
             name: ManagerName = manager["player_name"]
             gw_points: Points = manager["event_total"]
             series.setdefault(name, []).append((gameweek, gw_points))
@@ -88,15 +87,13 @@ def calculate_weekly_rankings(
     series: RankSeries = {}
 
     for gameweek in gameweeks:
-        gw_data = stats.load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        records = fpl.load_gameweek_scores(league_id, gameweek)
+        if not records:
             continue
-
-        standings = gw_data["league_data"]["standings"]["results"]
 
         # Sort by cumulative total descending to derive mini-league rank
         sorted_standings = sorted(
-            standings, key=lambda m: m["total"], reverse=True
+            records, key=lambda m: m["total"], reverse=True
         )
 
         rank = 1
@@ -167,12 +164,11 @@ def calculate_weekly_wins_losses(
     results: Dict[ManagerName, Dict[str, int]] = {}
 
     for gameweek in gameweeks:
-        gw_data = stats.load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        records = fpl.load_gameweek_scores(league_id, gameweek)
+        if not records:
             continue
 
-        standings = gw_data["league_data"]["standings"]["results"]
-        scores = [(m["player_name"], m["event_total"]) for m in standings]
+        scores = [(m["player_name"], m["event_total"]) for m in records]
 
         if not scores:
             continue

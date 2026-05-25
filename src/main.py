@@ -104,14 +104,6 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     previous_standings = fpl.get_previous_league_standings(league_id, gameweek)
     position_changes = analysis.calculate_position_changes(standings, previous_standings)
 
-    # Identify current gameweek winner(s)
-    highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']
-    current_winners = [m for m in standings if m['event_total'] == highest_score_points]
-
-    # Analyze winning streak
-    print("🔄 Checking for winning streaks...")
-    winning_streak = analysis.analyze_winning_streak(current_winners, league_id, gameweek)
-
     # Analyze captain choices
     print("🔄 Fetching captain details...")
     captain_choices = analysis.analyze_captain_choices(standings, gameweek, bootstrap_data)
@@ -141,6 +133,27 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     # Analyze chip availability
     print("🔄 Checking chip availability...")
     chip_availability = analysis.analyze_chip_availability(standings, gameweek, bootstrap_data)
+
+    # Correct each manager's gameweek score from the gameweek-pinned picks cache
+    # (now populated by the analyses above) rather than trusting the standings'
+    # volatile event_total. Done before winner detection so the winner/streak and
+    # the displayed highest/lowest/average all use reliable scores.
+    authoritative = fpl.load_gameweek_scores(league_id, gameweek)
+    if authoritative:
+        scores_by_entry = {r['entry']: r for r in authoritative}
+        for manager in standings:
+            record = scores_by_entry.get(manager['entry'])
+            if record:
+                manager['event_total'] = record['event_total']
+                manager['total'] = record['total']
+
+    # Identify current gameweek winner(s)
+    highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']
+    current_winners = [m for m in standings if m['event_total'] == highest_score_points]
+
+    # Analyze winning streak
+    print("🔄 Checking for winning streaks...")
+    winning_streak = analysis.analyze_winning_streak(current_winners, league_id, gameweek)
 
     # Generate formatted summary
     summary = display.format_gameweek_summary(
