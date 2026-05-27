@@ -10,8 +10,11 @@ Orchestrates the application workflow:
 This is the glue that ties all the modules together.
 """
 
+import os
+from pathlib import Path
+
 import click
-from . import storage, fpl, analysis, display
+from . import storage, fpl, analysis, display, stats
 
 
 class GroupedCommands(click.Group):
@@ -22,6 +25,7 @@ class GroupedCommands(click.Group):
         # Define command groups
         command_groups = {
             'FPL Commands': ['leagues', 'gen', 'fetch'],
+            'Stats & Graphs': ['stats', 'graphs', 'graphs-config'],
             'Backup Commands': ['backups', 'export', 'import', 'describe']
         }
 
@@ -92,21 +96,6 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     
     league_name = league_data['league']['name']
     standings = league_data['standings']['results']
-    
-    # Sort by rank
-    standings.sort(key=lambda x: x['rank'])
-    
-    # Get position changes from previous gameweek
-    previous_standings = fpl.get_previous_league_standings(league_id, gameweek)
-    position_changes = analysis.calculate_position_changes(standings, previous_standings)
-
-    # Identify current gameweek winner(s)
-    highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']
-    current_winners = [m for m in standings if m['event_total'] == highest_score_points]
-
-    # Analyze winning streak
-    print("🔄 Checking for winning streaks...")
-    winning_streak = analysis.analyze_winning_streak(current_winners, league_id, gameweek)
 
     # Analyze captain choices
     print("🔄 Fetching captain details...")
@@ -137,6 +126,38 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     # Analyze chip availability
     print("🔄 Checking chip availability...")
     chip_availability = analysis.analyze_chip_availability(standings, gameweek, bootstrap_data)
+
+    # Correct each manager's gameweek score from the gameweek-pinned picks cache
+    # (now populated by the analyses above) rather than trusting the standings'
+    # volatile event_total. Done before winner detection so the winner/streak and
+    # the displayed highest/lowest/average all use reliable scores.
+    authoritative = fpl.load_gameweek_scores(league_id, gameweek)
+    if authoritative:
+        scores_by_entry = {r['entry']: r for r in authoritative}
+        for manager in standings:
+            record = scores_by_entry.get(manager['entry'])
+            if record:
+                manager['event_total'] = record['event_total']
+                manager['total'] = record['total']
+
+    # Order the table and derive position changes from the now-reliable cumulative
+    # totals. calculate_proper_ranks assumes its input is sorted by total desc, and
+    # the previous week's totals come from the same gameweek-pinned picks cache.
+    standings.sort(key=lambda m: m['total'], reverse=True)
+    previous_records = None
+    if gameweek > 1:
+        previous_records = fpl.load_gameweek_scores(league_id, gameweek - 1)
+        if previous_records:
+            previous_records.sort(key=lambda m: m['total'], reverse=True)
+    position_changes = analysis.calculate_position_changes(standings, previous_records)
+
+    # Identify current gameweek winner(s)
+    highest_score_points = max(standings, key=lambda x: x['event_total'])['event_total']
+    current_winners = [m for m in standings if m['event_total'] == highest_score_points]
+
+    # Analyze winning streak
+    print("🔄 Checking for winning streaks...")
+    winning_streak = analysis.analyze_winning_streak(current_winners, league_id, gameweek)
 
     # Generate formatted summary
     summary = display.format_gameweek_summary(
@@ -172,6 +193,270 @@ def gen(league_id, gameweek):
     # Save to file
     output_file = storage.save_summary(summary, league_id, gameweek)
     print(f"\n💾 Summary saved to '{output_file}'")
+
+
+@cli.command('stats')
+@click.option('--league-id', '-l', type=int, required=True, help='FPL league ID')
+@click.option('--gameweek-range', '-r', type=str, help='Gameweek range: "all", "1-10", or "1,3,5" (defaults to "all")')
+def stats_cmd(league_id, gameweek_range):
+    """Analyze season-long aggregate statistics for a league.
+
+    Calculates statistics across cached gameweeks:
+    - Most gameweeks won
+    - Best position scores (defence/midfield/attack)
+    - Highest points on bench
+    - Best chip returns
+    - Most transfer points spent
+
+    Examples:
+      lig stats -l 123456              # All cached gameweeks
+      lig stats -l 123456 -r all       # Explicit all gameweeks
+      lig stats -l 123456 -r "1-10"    # Gameweeks 1-10
+      lig stats -l 123456 -r "1,3,5"   # Specific gameweeks
+    """
+    try:
+        print("📊 Analyzing season statistics...")
+
+        # Get available gameweeks
+        available_gameweeks = stats.get_available_gameweeks(league_id)
+        if not available_gameweeks:
+            print(f"❌ Error: No cached data found for league {league_id}")
+            print(f"Run 'lig fetch -l {league_id} -g <gameweek>' to fetch data first")
+            return
+
+        # Parse gameweek range
+        try:
+            gameweeks = stats.parse_gameweek_range(gameweek_range, available_gameweeks)
+        except ValueError as e:
+            print(f"❌ Error: {e}")
+            return
+
+        print(f"Found {len(available_gameweeks)} cached gameweek(s) for league {league_id}")
+        print(f"Analyzing {len(gameweeks)} gameweek(s)...\n")
+
+        # Calculate statistics
+        statistics = stats.calculate_season_statistics(league_id, gameweeks)
+
+        # Format and display
+        summary = stats.format_stats_summary(statistics)
+        print(summary)
+
+        # Save to file
+        output_dir = storage.get_data_dir()
+        summaries_dir = os.path.join(output_dir, "summaries")
+        os.makedirs(summaries_dir, exist_ok=True)
+
+        output_file = os.path.join(summaries_dir, f"league_{league_id}_season_stats.txt")
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(summary)
+
+        print(f"💾 Stats saved to '{output_file}'")
+
+    except Exception as e:
+        print(f"❌ Error generating stats: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+# Stub config colour palette — keep in sync with example_config.toml.
+_GRAPHS_CONFIG_COLOURS = (
+    "#e63946", "#457b9d", "#2a9d8f", "#e9c46a",
+    "#f4a261", "#a8dadc", "#c77dff", "#06d6a0",
+    "#ef476f", "#ffd166", "#118ab2", "#8ecae6",
+)
+
+
+def _list_charts() -> None:
+    """Print one line per chart: name and short description."""
+    from .graphs import CHART_DESCRIPTIONS
+    width = max(len(name) for name in CHART_DESCRIPTIONS)
+    for name, desc in CHART_DESCRIPTIONS.items():
+        click.echo(f"  {name.ljust(width)}  {desc}")
+
+
+@cli.command('graphs')
+@click.option('--league-id', '-l', type=int, required=False,
+              help='FPL league ID (required unless --list is given).')
+@click.option('--gameweeks', '-g', default='all', show_default=True,
+              help='Gameweeks to include. "all", a range like "1-20", or a list "1,3,5".')
+@click.option('--config-dir', '-c', default=None,
+              type=click.Path(file_okay=False),
+              help='Config directory (default: ~/.fpl-tools/config/).')
+@click.option('--output-dir', '-o', default=None,
+              type=click.Path(file_okay=False),
+              help='Output directory (default: ~/.fpl-tools/graphs/<league-id>/).')
+@click.option('--chart', 'chart_name', default=None,
+              help='Render only this chart instead of all. See --list for names.')
+@click.option('--season', default=None,
+              help='Season label for the legend chart (e.g. "2025/26"). Derived if omitted.')
+@click.option('--list', 'list_charts', is_flag=True,
+              help='List available chart names and exit.')
+@click.pass_context
+def graphs_cmd(ctx, league_id, gameweeks, config_dir, output_dir,
+               chart_name, season, list_charts):
+    """Render PNG charts for a league.
+
+    \b
+    Examples:
+      lig graphs --list                         # show available chart names
+      lig graphs -l 123456                      # render every chart
+      lig graphs -l 123456 --chart legend       # render just one chart
+      lig graphs -l 123456 -g 1-20              # restrict to a gameweek range
+    """
+    if list_charts:
+        _list_charts()
+        ctx.exit(0)
+
+    if league_id is None:
+        raise click.UsageError("Missing option '-l' / '--league-id' (required unless --list is given).")
+
+    from .graphs import CHART_NAMES, build_chart_dispatch
+    from .graphs.config import load_league_config, ConfigError
+
+    if chart_name is not None and chart_name not in CHART_NAMES:
+        raise click.ClickException(
+            f"Unknown chart '{chart_name}'. Valid options: {', '.join(CHART_NAMES)}"
+        )
+
+    config_path = Path(config_dir) if config_dir else Path(storage.get_config_dir())
+    output_path = Path(output_dir) if output_dir else Path(storage.get_data_dir()) / "graphs" / str(league_id)
+
+    try:
+        league_config = load_league_config(config_path, league_id)
+    except ConfigError as e:
+        raise click.ClickException(str(e))
+
+    available = stats.get_available_gameweeks(league_id)
+    if not available:
+        raise click.ClickException(
+            f"No cached data found for league {league_id}. "
+            f"Run 'lig fetch -l {league_id} -g <n>' first."
+        )
+
+    try:
+        gw_list = stats.parse_gameweek_range(gameweeks, available)
+    except ValueError as e:
+        raise click.ClickException(str(e))
+
+    # Display name precedence: config override → API name → "League <id>"
+    first_gw_data = stats.load_gameweek_data(league_id, gw_list[0])
+    api_name = (
+        first_gw_data.get("league_data", {}).get("league", {}).get("name")
+        if first_gw_data else None
+    )
+    league_name = league_config.name or api_name or f"League {league_id}"
+
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    click.echo(f"Rendering graphs for {league_name}")
+    click.echo(f"  Gameweeks: {gw_list[0]}–{gw_list[-1]} ({len(gw_list)} weeks)")
+    click.echo(f"  Output:    {output_path}")
+    click.echo()
+
+    dispatch = build_chart_dispatch(
+        league_id=league_id,
+        gameweeks=gw_list,
+        config=league_config,
+        output_dir=output_path,
+        league_name=league_name,
+        season=season,
+    )
+
+    if chart_name:
+        click.echo(f"  Rendering {chart_name}.png...")
+        dispatch[chart_name]()
+    else:
+        for name, render_fn in dispatch.items():
+            click.echo(f"  Rendering {name}.png...")
+            render_fn()
+
+    click.echo(f"\n  Done! Output: {output_path}")
+
+
+@cli.command('graphs-config')
+@click.option('--league-id', '-l', type=int, required=True, help='FPL league ID.')
+@click.option('--gameweek', '-g', type=int, default=None,
+              help='Gameweek to read manager list from (default: lowest cached).')
+@click.option('--output-file', '-o', default=None,
+              type=click.Path(dir_okay=False),
+              help='Output TOML path (default: ~/.fpl-tools/config/leagues/<id>.toml).')
+@click.option('--force', is_flag=True, help='Overwrite an existing config file.')
+def graphs_config_cmd(league_id, gameweek, output_file, force):
+    """Generate a stub TOML config file for a league.
+
+    Reads cached league data and writes one [[managers]] entry per player,
+    pre-filling fpl_name, a sensible display_name, and a cycled palette
+    colour. Avatars are commented out — uncomment and supply paths to
+    enable per-manager avatars.
+    """
+    available = stats.get_available_gameweeks(league_id)
+    if not available:
+        raise click.ClickException(
+            f"No cached data found for league {league_id}. "
+            f"Run 'lig fetch -l {league_id} -g <n>' first."
+        )
+
+    gw = gameweek if gameweek is not None else available[0]
+    if gw not in available:
+        raise click.ClickException(
+            f"Gameweek {gw} is not cached for league {league_id}. "
+            f"Available: {', '.join(str(g) for g in available)}"
+        )
+
+    gw_data = stats.load_gameweek_data(league_id, gw)
+    if not gw_data:
+        raise click.ClickException(f"Failed to read cached data for GW{gw}.")
+
+    league_block = gw_data.get("league_data", {}).get("league", {})
+    standings = gw_data.get("league_data", {}).get("standings", {}).get("results", [])
+    if not standings:
+        raise click.ClickException(f"No managers found in cached GW{gw} standings.")
+
+    api_league_name = league_block.get("name", f"League {league_id}")
+
+    if output_file:
+        output_path = Path(output_file)
+    else:
+        output_path = Path(storage.get_config_dir()) / "leagues" / f"{league_id}.toml"
+
+    if output_path.exists() and not force:
+        raise click.ClickException(
+            f"Config file already exists: {output_path}\n"
+            f"Pass --force to overwrite."
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        "# League graph config — generated by `lig graphs-config`.",
+        "# Edit display_name, colour, and avatar to taste before running `lig graphs`.",
+        "",
+        "[league]",
+        f"id = {league_id}",
+        f'name = "{api_league_name}"',
+        "",
+    ]
+    for i, manager in enumerate(standings):
+        fpl_name = manager.get("player_name", "")
+        display_name = fpl_name.split()[0] if fpl_name else f"Manager{i + 1}"
+        colour = _GRAPHS_CONFIG_COLOURS[i % len(_GRAPHS_CONFIG_COLOURS)]
+        avatar_slug = display_name.lower().replace(" ", "_")
+        # TOML strings need double-quote escaping; FPL names are usually plain ASCII.
+        escaped_fpl_name = fpl_name.replace('"', '\\"')
+        escaped_display = display_name.replace('"', '\\"')
+        lines.extend([
+            "[[managers]]",
+            f'fpl_name = "{escaped_fpl_name}"',
+            f'display_name = "{escaped_display}"',
+            f'colour = "{colour}"',
+            f'# avatar = "avatars/{avatar_slug}.png"',
+            "",
+        ])
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+    click.echo(f"Wrote stub config to {output_path}")
+    click.echo(f"  Managers: {len(standings)}")
+    click.echo(f"  Edit it then run: lig graphs -l {league_id}")
 
 
 @cli.command()

@@ -572,7 +572,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                     if player_data:
                         chip_returns['triple_captain'].append({
                             'manager': manager['player_name'],
-                            'player': fpl.get_player_name(pick['element'], bootstrap_data),
+                            'player': fpl.get_player_short_name(pick['element'], bootstrap_data),
                             'points': player_data['event_points']
                         })
                     break
@@ -669,25 +669,19 @@ def analyze_winning_streak(current_winners: List[Dict], league_id: int, gameweek
 
     # Look back week by week
     for check_gw in range(gameweek - 1, 0, -1):
-        # Load league standings from cache
-        cache_path = fpl.storage.get_cache_path(check_gw, "league", league_id=league_id)
-        league_data = fpl.storage.load_from_cache(cache_path)
+        # Scores come from the gameweek-pinned picks cache, not standings event_total
+        records = fpl.load_gameweek_scores(league_id, check_gw)
 
-        if not league_data:
+        if not records:
             # Cache missing - can't reliably determine streak
             print(f"⚠️  Warning: Streak analysis stopped - missing cache for GW {check_gw}")
             return None
 
-        standings = league_data['standings']['results']
-        if not standings:
-            print(f"⚠️  Warning: Streak analysis stopped - empty standings for GW {check_gw}")
-            return None
-
         # Find highest score in that gameweek
-        highest_score = max(m['event_total'] for m in standings)
+        highest_score = max(m['event_total'] for m in records)
 
         # Get all managers who tied at highest score (tied wins count)
-        winners_that_week = {m['entry'] for m in standings if m['event_total'] == highest_score}
+        winners_that_week = {m['entry'] for m in records if m['event_total'] == highest_score}
 
         # Check if any current winners also won that week
         continuing_winners = current_winner_ids.intersection(winners_that_week)

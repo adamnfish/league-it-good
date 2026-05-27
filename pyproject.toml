@@ -27,6 +27,9 @@ classifiers = [
 dependencies = [
     "requests>=2.31.0",
     "click>=8.0.0",
+    "matplotlib>=3.7",
+    "Pillow>=10.0",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 
 [project.urls]
@@ -40,3 +43,6 @@ league-it-good = "src.main:cli"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.graphs" = ["fonts/*.ttf", "fonts/*.txt", "example_config.toml"]
