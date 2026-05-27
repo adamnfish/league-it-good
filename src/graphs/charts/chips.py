@@ -231,26 +231,28 @@ def render_chip_chart(
                 gameweek: int = usage["gameweek"]
                 player_name: Optional[str] = usage["player_name"]
 
-                # Second usage is slightly lightened to distinguish the two
-                bar_colour = colour if j == 0 else render.lighten(colour, 0.25)
-
+                # All segments share the manager's colour; the divider line
+                # between them is enough to tell them apart.
                 ax.barh(
                     i, points,
                     left=left,
                     height=render.BAR_HEIGHT,
-                    color=bar_colour,
+                    color=colour,
                     zorder=2,
                 )
 
-                # Thin divider line between segments
+                # Thin divider line between segments. Use vlines (data
+                # coordinates for ymin/ymax) so the line spans exactly this
+                # bar's height — axvline's ymin/ymax are axes fractions, which
+                # don't map to the inverted, auto-scaled y-axis.
                 if j > 0:
-                    ax.axvline(
+                    ax.vlines(
                         left,
+                        i - render.BAR_HEIGHT / 2,
+                        i + render.BAR_HEIGHT / 2,
                         color=render.BACKGROUND,
                         linewidth=1.5,
                         zorder=3,
-                        ymin=(i - render.BAR_HEIGHT / 2) / n_managers,
-                        ymax=(i + render.BAR_HEIGHT / 2) / n_managers,
                     )
 
                 label = _format_segment_label(points, gameweek, player_name)
