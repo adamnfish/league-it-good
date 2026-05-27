@@ -195,7 +195,8 @@ def load_league_config(config_dir: Path, league_id: int) -> LeagueConfig:
         raise ConfigError(
             f"No config file found for league {league_id}.\n"
             f"Expected: {config_path}\n"
-            f"Create it using the template in config/leagues/example.toml"
+            f"Generate one with: lig graphs-config -l {league_id}\n"
+            f"(or copy the template at src/graphs/example_config.toml)"
         )
 
     try:

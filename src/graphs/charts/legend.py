@@ -86,7 +86,8 @@ def render_legend(
     Render the cover-sheet legend PNG for a league.
 
     Args:
-        config:         Loaded LeagueConfig with managers in display order.
+        config:         Loaded LeagueConfig; managers are rendered
+                        alphabetically by display_name (see below).
         league_name:    Display name for the league (typically the config
                         override, or the FPL API name as a fallback).
         gameweek_range: (first_gw, last_gw) inclusive.

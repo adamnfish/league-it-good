@@ -300,7 +300,7 @@ class TestSaveFigure:
         output = tmp_path / "test.png"
         render.save_figure(fig, output)
         # plt.close() should have been called — figure should not be open
-        assert fig not in plt.get_fignums()
+        assert fig.number not in plt.get_fignums()
 
 
 # ---------------------------------------------------------------------------

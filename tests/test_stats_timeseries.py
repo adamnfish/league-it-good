@@ -2,7 +2,7 @@
 Tests for stats_timeseries.py
 
 All functions are tested with synthetic data via monkeypatching of
-load_gameweek_data — no real cache or FPL API needed.
+fpl.load_gameweek_scores — no real cache or FPL API needed.
 
 Run with: python -m pytest src/tests/test_stats_timeseries.py -v
 """
@@ -19,21 +19,8 @@ from src import stats_timeseries as ts
 # Test data helpers
 # ---------------------------------------------------------------------------
 
-def make_gw_data(gameweek: int, standings: list[dict]) -> dict:
-    """Build a minimal load_gameweek_data return value."""
-    return {
-        "gameweek": gameweek,
-        "league_data": {
-            "standings": {
-                "results": standings,
-            }
-        },
-        "bootstrap_data": {},
-    }
-
-
 def make_manager(name: str, event_total: int, total: int) -> dict:
-    """Build a minimal standings manager entry."""
+    """Build a minimal score record as returned by fpl.load_gameweek_scores."""
     return {
         "player_name": name,
         "event_total": event_total,
@@ -58,10 +45,11 @@ MANAGERS_GW3 = [
     make_manager("Carl", 60, 155),
 ]
 
+# fpl.load_gameweek_scores returns a flat list of score records per gameweek.
 GW_DATA = {
-    1: make_gw_data(1, MANAGERS_GW1),
-    2: make_gw_data(2, MANAGERS_GW2),
-    3: make_gw_data(3, MANAGERS_GW3),
+    1: MANAGERS_GW1,
+    2: MANAGERS_GW2,
+    3: MANAGERS_GW3,
 }
 
 
@@ -75,19 +63,19 @@ def fake_load(league_id: int, gameweek: int):
 
 class TestCalculateWeeklyScores:
     def test_returns_all_managers(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_scores(12345, [1, 2, 3])
         assert set(result.keys()) == {"Adam", "Beth", "Carl"}
 
     def test_correct_scores_per_gameweek(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_scores(12345, [1, 2, 3])
         assert result["Adam"] == [(1, 60), (2, 45), (3, 80)]
         assert result["Beth"] == [(1, 50), (2, 70), (3, 40)]
         assert result["Carl"] == [(1, 40), (2, 55), (3, 60)]
 
     def test_results_are_sorted_chronologically(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_scores(12345, [3, 1, 2])  # unsorted input
         gws = [gw for gw, _ in result["Adam"]]
         assert gws == sorted(gws)
@@ -96,19 +84,19 @@ class TestCalculateWeeklyScores:
         def sparse_load(league_id, gameweek):
             return GW_DATA.get(gameweek) if gameweek != 2 else None
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=sparse_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=sparse_load):
             result = ts.calculate_weekly_scores(12345, [1, 2, 3])
         # GW2 missing — Adam should only have GW1 and GW3
         assert len(result["Adam"]) == 2
         assert (2, 45) not in result["Adam"]
 
     def test_empty_gameweeks_returns_empty(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_scores(12345, [])
         assert result == {}
 
     def test_single_gameweek(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_scores(12345, [1])
         assert result["Adam"] == [(1, 60)]
 
@@ -119,13 +107,13 @@ class TestCalculateWeeklyScores:
 
 class TestCalculateWeeklyRankings:
     def test_returns_all_managers(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_rankings(12345, [1, 2, 3])
         assert set(result.keys()) == {"Adam", "Beth", "Carl"}
 
     def test_gw1_rankings(self):
         # Adam 60 total → 1st, Beth 50 → 2nd, Carl 40 → 3rd
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_rankings(12345, [1])
         assert result["Adam"] == [(1, 1)]
         assert result["Beth"] == [(1, 2)]
@@ -133,23 +121,23 @@ class TestCalculateWeeklyRankings:
 
     def test_gw2_rankings(self):
         # Beth 120 → 1st, Adam 105 → 2nd, Carl 95 → 3rd
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_rankings(12345, [2])
         assert result["Beth"] == [(2, 1)]
         assert result["Adam"] == [(2, 2)]
         assert result["Carl"] == [(2, 3)]
 
     def test_tie_gives_same_rank(self):
-        tied_data = {1: make_gw_data(1, [
+        tied_data = {1: [
             make_manager("Adam", 60, 60),
             make_manager("Beth", 60, 60),  # tied with Adam
             make_manager("Carl", 40, 40),
-        ])}
+        ]}
 
         def tied_load(league_id, gameweek):
             return tied_data.get(gameweek)
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=tied_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=tied_load):
             result = ts.calculate_weekly_rankings(12345, [1])
         assert result["Adam"][0][1] == 1
         assert result["Beth"][0][1] == 1
@@ -157,7 +145,7 @@ class TestCalculateWeeklyRankings:
         assert result["Carl"][0][1] == 3
 
     def test_results_sorted_chronologically(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_rankings(12345, [3, 1, 2])
         gws = [gw for gw, _ in result["Adam"]]
         assert gws == sorted(gws)
@@ -166,7 +154,7 @@ class TestCalculateWeeklyRankings:
         def sparse_load(league_id, gameweek):
             return GW_DATA.get(gameweek) if gameweek != 2 else None
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=sparse_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=sparse_load):
             result = ts.calculate_weekly_rankings(12345, [1, 2, 3])
         assert len(result["Adam"]) == 2
 
@@ -215,12 +203,12 @@ class TestCalculateCumulativePoints:
 
 class TestCalculateWeeklyWinsLosses:
     def test_returns_all_managers(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         assert set(result.keys()) == {"Adam", "Beth", "Carl"}
 
     def test_each_result_has_correct_keys(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1])
         assert set(result["Adam"].keys()) == {"wins", "losses", "mid"}
 
@@ -229,21 +217,21 @@ class TestCalculateWeeklyWinsLosses:
         # GW2: Beth wins (70), Carl loses (45 — wait, Adam has 45, Carl 55)
         # Actually: GW2 Beth=70 wins, Adam=45 loses
         # GW3: Adam wins (80), Beth loses (40)
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         assert result["Adam"]["wins"] == 2   # GW1, GW3
         assert result["Beth"]["wins"] == 1   # GW2
         assert result["Carl"]["wins"] == 0
 
     def test_loss_counts(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         assert result["Carl"]["losses"] == 1   # GW1 (40)
         assert result["Adam"]["losses"] == 1   # GW2 (45)
         assert result["Beth"]["losses"] == 1   # GW3 (40)
 
     def test_mid_counts(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         # GW1: Adam wins, Beth mid, Carl loses
         # GW2: Beth wins, Carl mid, Adam loses
@@ -253,37 +241,37 @@ class TestCalculateWeeklyWinsLosses:
         assert result["Carl"]["mid"] == 2   # mid in GW2 and GW3
 
     def test_wins_losses_mid_sum_to_total_gameweeks(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         for manager, counts in result.items():
             assert counts["wins"] + counts["losses"] + counts["mid"] == 3
 
     def test_tied_win_both_get_win(self):
-        tied_data = {1: make_gw_data(1, [
+        tied_data = {1: [
             make_manager("Adam", 60, 60),
             make_manager("Beth", 60, 60),
             make_manager("Carl", 40, 40),
-        ])}
+        ]}
 
         def tied_load(league_id, gameweek):
             return tied_data.get(gameweek)
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=tied_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=tied_load):
             result = ts.calculate_weekly_wins_losses(12345, [1])
         assert result["Adam"]["wins"] == 1
         assert result["Beth"]["wins"] == 1
 
     def test_two_managers_one_tied_as_loss(self):
-        tied_loss_data = {1: make_gw_data(1, [
+        tied_loss_data = {1: [
             make_manager("Adam", 60, 60),
             make_manager("Beth", 40, 40),
             make_manager("Carl", 40, 40),
-        ])}
+        ]}
 
         def tied_load(league_id, gameweek):
             return tied_loss_data.get(gameweek)
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=tied_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=tied_load):
             result = ts.calculate_weekly_wins_losses(12345, [1])
         assert result["Beth"]["losses"] == 1
         assert result["Carl"]["losses"] == 1
@@ -292,7 +280,7 @@ class TestCalculateWeeklyWinsLosses:
         def sparse_load(league_id, gameweek):
             return GW_DATA.get(gameweek) if gameweek != 2 else None
 
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=sparse_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=sparse_load):
             result = ts.calculate_weekly_wins_losses(12345, [1, 2, 3])
         for manager in result.values():
             assert manager["wins"] + manager["losses"] + manager["mid"] == 2
@@ -367,7 +355,7 @@ class TestCalculateScoreConsistency:
 
 class TestCalculateAllTimeseries:
     def test_returns_all_keys(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_all_timeseries(12345, [1, 2, 3])
         assert set(result.keys()) == {
             "weekly_scores",
@@ -378,14 +366,14 @@ class TestCalculateAllTimeseries:
         }
 
     def test_cumulative_derived_from_weekly_scores(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_all_timeseries(12345, [1, 2, 3])
         # Adam: 60 + 45 + 80 = 185 cumulative at GW3
         cumulative = result["cumulative_points"]
         assert cumulative["Adam"][-1] == (3, 185)
 
     def test_weekly_scores_and_cumulative_consistent(self):
-        with patch("src.stats_timeseries.stats.load_gameweek_data", side_effect=fake_load):
+        with patch("src.stats_timeseries.fpl.load_gameweek_scores", side_effect=fake_load):
             result = ts.calculate_all_timeseries(12345, [1, 2, 3])
         weekly = result["weekly_scores"]
         cumulative = result["cumulative_points"]

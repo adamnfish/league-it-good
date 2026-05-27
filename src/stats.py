@@ -539,14 +539,8 @@ def calculate_season_statistics(league_id: int, gameweeks: List[int]) -> Dict[st
     position_data = calculate_best_position_scores(league_id, gameweeks)
     chip_data = calculate_best_chip_returns(league_id, gameweeks)
 
-    # Determine which gameweeks were skipped
-    gameweeks_processed = set()
-    for stat_data in [wins_data, bench_data, transfer_data, position_data, chip_data]:
-        if stat_data.get('gameweeks_processed', 0) > 0:
-            gameweeks_processed.add(stat_data['gameweeks_processed'])
-
-    # For now, assume all requested gameweeks were processed
-    # (We'll add proper skip tracking when we implement the more complex stats)
+    # Skip tracking is not yet implemented — assume all requested gameweeks
+    # were processed.
     gameweeks_skipped = []
 
     return {
