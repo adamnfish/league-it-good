@@ -94,6 +94,20 @@ def make_timeseries(names: list[str]) -> dict:
     }
 
 
+def make_global_standing(names: list[str]) -> tuple[dict, int]:
+    """Mirror calculate_global_standing: (standing, total_players)."""
+    spread = 90.0 / max(len(names), 1)
+    standing = {
+        n: {
+            "overall_rank": (i + 1) * 1000,
+            "total_points": (len(names) - i) * 100,
+            "percentile": 100.0 - i * spread,
+        }
+        for i, n in enumerate(names)
+    }
+    return standing, 11_000_000
+
+
 def run_render_all(tmp_path: Path, names: list[str] = None) -> None:
     """
     Call render_all with mocked stats dependencies.
@@ -111,6 +125,7 @@ def run_render_all(tmp_path: Path, names: list[str] = None) -> None:
 
     mock_ts = MagicMock()
     mock_ts.calculate_all_timeseries.return_value = make_timeseries(names)
+    mock_ts.calculate_global_standing.return_value = make_global_standing(names)
 
     with (
         patch("src.stats", mock_stats),
@@ -219,6 +234,7 @@ class TestRenderAll:
             "chip_bench_boost.png", "chip_triple_captain.png",
             "chip_free_hit.png", "chip_wildcard.png",
             "weekly_scores.png", "league_position.png", "cumulative_points.png",
+            "global_rank.png",
         }
         produced = {f.name for f in tmp_path.glob("*.png")}
         assert expected == produced
