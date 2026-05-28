@@ -155,7 +155,7 @@ def _render_line_chart(
                     solid_capstyle="round",
                 )
 
-    for fpl_name, data_points in draw_order:
+    for idx, (fpl_name, data_points) in enumerate(draw_order):
         if not data_points:
             continue
 
@@ -166,9 +166,7 @@ def _render_line_chart(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_LINE,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
+            size=render.AVATAR_PHOTO_PX_LINE,
         )
 
         gws    = [gw for gw, _ in data_points]
@@ -180,12 +178,14 @@ def _render_line_chart(
             # per-gameweek zorder ensures the highest scorer that week
             # sits on top when avatars overlap.
             for gw_i, val_i in zip(gws, values):
-                render.place_avatar(
+                render.place_avatar_ringed(
                     ax,
                     x=gw_i,
                     y=val_i,
                     avatar_rgba=avatar,
-                    zoom=render.AVATAR_ZOOM_LINE,
+                    ring_colour=colour,
+                    diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+                    ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
                     zorder=gw_zorder[gw_i][fpl_name],
                 )
             continue
@@ -222,15 +222,19 @@ def _render_line_chart(
             zorder=4,
         )
 
-        # Avatar at the final data point
+        # Avatar at the final data point. Stagger zorder by draw index so each
+        # ring stays paired with its own photo when end-of-line avatars overlap.
         final_gw    = gws[-1]
         final_value_v = values[-1]
-        render.place_avatar(
+        render.place_avatar_ringed(
             ax,
             x=final_gw,
             y=final_value_v,
             avatar_rgba=avatar,
-            zoom=render.AVATAR_ZOOM_LINE,
+            ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
+            zorder=10 + idx,
         )
 
         # Final value annotation just to the right of the avatar
@@ -365,7 +369,7 @@ def render_league_position(
 
     draw_order = sorted(series.items(), key=final_rank, reverse=True)
 
-    for fpl_name, data_points in draw_order:
+    for idx, (fpl_name, data_points) in enumerate(draw_order):
         if not data_points:
             continue
 
@@ -376,9 +380,7 @@ def render_league_position(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_BAR,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_BAR,
         )
 
         gws    = [gw   for gw, _ in data_points]
@@ -398,8 +400,12 @@ def render_league_position(
 
         final_gw   = gws[-1]
         final_rank_v = values[-1]
-        render.place_avatar(ax, x=final_gw, y=final_rank_v,
-                            avatar_rgba=avatar, zoom=render.AVATAR_ZOOM_BAR)
+        render.place_avatar_ringed(
+            ax, x=final_gw, y=final_rank_v, avatar_rgba=avatar, ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_BAR,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_BAR,
+            zorder=10 + idx,
+        )
 
         ax.annotate(
             display_name,
@@ -548,16 +554,16 @@ def render_global_standing(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_LINE,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
+            size=render.AVATAR_PHOTO_PX_LINE,
         )
-        render.place_avatar(
+        render.place_avatar_ringed(
             ax,
             x=line_x,
             y=info["percentile"],
             avatar_rgba=avatar,
-            zoom=render.AVATAR_ZOOM_LINE,
+            ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
             zorder=10 + idx,
         )
         rows.append((

@@ -80,9 +80,7 @@ def render_ranked_bar(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_BAR,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_BAR,
         )
 
         # Background track
@@ -107,7 +105,11 @@ def render_ranked_bar(
         )
 
         # Avatar at bar tip
-        render.place_avatar(ax, x=value, y=i, avatar_rgba=avatar)
+        render.place_avatar_ringed(
+            ax, x=value, y=i, avatar_rgba=avatar, ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_BAR,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_BAR,
+        )
 
         # Manager name
         render.draw_manager_label(ax, y=i, display_name=display_name,
@@ -181,9 +183,7 @@ def render_consistency_bar(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_BAR,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_BAR,
         )
 
         mean  = stats["mean"]
@@ -220,7 +220,11 @@ def render_consistency_bar(
             zorder=4,
         )
 
-        render.place_avatar(ax, x=mean, y=i, avatar_rgba=avatar)
+        render.place_avatar_ringed(
+            ax, x=mean, y=i, avatar_rgba=avatar, ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_BAR,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_BAR,
+        )
         render.draw_manager_label(ax, y=i, display_name=display_name,
                                   x_offset=-(x_max * 0.02))
 

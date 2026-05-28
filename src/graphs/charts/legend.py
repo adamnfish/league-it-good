@@ -62,8 +62,6 @@ _HEADER_HEIGHT_IN = 2.4         # inches reserved for league name + subtitle
 _ROW_HEIGHT_IN = 0.9            # inches per manager row
 _BOTTOM_PADDING_IN = 0.4
 
-_AVATAR_ZOOM = render.AVATAR_ZOOM_BAR * 1.4
-
 _SWATCH_WIDTH = 0.08            # axis-fraction width of colour swatch
 _SWATCH_HEIGHT = 0.55           # row-fraction height of swatch
 _AVATAR_X = 0.04                # axis-fraction x of avatar centre
@@ -170,16 +168,16 @@ def render_legend(
             manager.avatar_path,
             manager.display_name,
             manager.colour,
-            size=render.AVATAR_SIZE_LEGEND,
-            border_colour=manager.colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_LEGEND,
         )
-        render.place_avatar(
+        render.place_avatar_ringed(
             ax,
             x=_AVATAR_X,
             y=row_centre_y,
             avatar_rgba=avatar,
-            zoom=_AVATAR_ZOOM,
+            ring_colour=manager.colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_LEGEND,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_LEGEND,
         )
 
         ax.text(
