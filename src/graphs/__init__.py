@@ -28,6 +28,7 @@ from .charts.lines import (
     render_weekly_scores,
     render_league_position,
     render_cumulative_points,
+    render_global_standing,
 )
 
 
@@ -49,6 +50,7 @@ CHART_DESCRIPTIONS: Dict[str, str] = {
     "weekly_scores":     "Line chart of points scored each gameweek",
     "league_position":   "Line chart of mini-league position each gameweek",
     "cumulative_points": "Running total points race across the season",
+    "global_rank":       "Each manager's standing in the global FPL field, with quartiles",
 }
 
 CHART_NAMES: Tuple[str, ...] = tuple(CHART_DESCRIPTIONS.keys())
@@ -124,6 +126,14 @@ def build_chart_dispatch(
                 league_id, gameweeks
             )
         return cache["timeseries"]  # type: ignore[return-value]
+
+    def global_standing() -> tuple:
+        if "global_standing" not in cache:
+            click.echo("  Calculating global standing...")
+            cache["global_standing"] = stats_timeseries.calculate_global_standing(
+                league_id, last_gw
+            )
+        return cache["global_standing"]  # type: ignore[return-value]
 
     def all_manager_names() -> List[str]:
         if "all_manager_names" not in cache:
@@ -251,6 +261,12 @@ def build_chart_dispatch(
             output_path=output_dir / "cumulative_points.png",
             subtitle=subtitle,
             description=CHART_BLURBS.get("cumulative_points"),
+        ),
+        "global_rank": lambda: render_global_standing(
+            *global_standing(),
+            config=config,
+            output_path=output_dir / "global_rank.png",
+            gameweek=last_gw,
         ),
     }
 
