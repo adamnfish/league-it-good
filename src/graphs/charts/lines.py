@@ -155,7 +155,7 @@ def _render_line_chart(
                     solid_capstyle="round",
                 )
 
-    for fpl_name, data_points in draw_order:
+    for idx, (fpl_name, data_points) in enumerate(draw_order):
         if not data_points:
             continue
 
@@ -166,9 +166,7 @@ def _render_line_chart(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_LINE,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_LINE,
+            size=render.AVATAR_PHOTO_PX_LINE,
         )
 
         gws    = [gw for gw, _ in data_points]
@@ -180,12 +178,14 @@ def _render_line_chart(
             # per-gameweek zorder ensures the highest scorer that week
             # sits on top when avatars overlap.
             for gw_i, val_i in zip(gws, values):
-                render.place_avatar(
+                render.place_avatar_ringed(
                     ax,
                     x=gw_i,
                     y=val_i,
                     avatar_rgba=avatar,
-                    zoom=render.AVATAR_ZOOM_LINE,
+                    ring_colour=colour,
+                    diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+                    ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
                     zorder=gw_zorder[gw_i][fpl_name],
                 )
             continue
@@ -222,15 +222,19 @@ def _render_line_chart(
             zorder=4,
         )
 
-        # Avatar at the final data point
+        # Avatar at the final data point. Stagger zorder by draw index so each
+        # ring stays paired with its own photo when end-of-line avatars overlap.
         final_gw    = gws[-1]
         final_value_v = values[-1]
-        render.place_avatar(
+        render.place_avatar_ringed(
             ax,
             x=final_gw,
             y=final_value_v,
             avatar_rgba=avatar,
-            zoom=render.AVATAR_ZOOM_LINE,
+            ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
+            zorder=10 + idx,
         )
 
         # Final value annotation just to the right of the avatar
@@ -365,7 +369,7 @@ def render_league_position(
 
     draw_order = sorted(series.items(), key=final_rank, reverse=True)
 
-    for fpl_name, data_points in draw_order:
+    for idx, (fpl_name, data_points) in enumerate(draw_order):
         if not data_points:
             continue
 
@@ -376,9 +380,7 @@ def render_league_position(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_BAR,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_BAR,
         )
 
         gws    = [gw   for gw, _ in data_points]
@@ -398,8 +400,12 @@ def render_league_position(
 
         final_gw   = gws[-1]
         final_rank_v = values[-1]
-        render.place_avatar(ax, x=final_gw, y=final_rank_v,
-                            avatar_rgba=avatar, zoom=render.AVATAR_ZOOM_BAR)
+        render.place_avatar_ringed(
+            ax, x=final_gw, y=final_rank_v, avatar_rgba=avatar, ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_BAR,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_BAR,
+            zorder=10 + idx,
+        )
 
         ax.annotate(
             display_name,
@@ -450,6 +456,146 @@ def render_cumulative_points(
         height=11,
         space_end_labels=True,
     )
+
+
+def render_global_standing(
+    standing: Dict[ManagerName, Dict[str, float]],
+    total_players: int,
+    config: LeagueConfig,
+    output_path: Path,
+    gameweek: Optional[int] = None,
+    subtitle: Optional[str] = None,
+) -> None:
+    """
+    Render a snapshot of where each league manager sits in the global FPL
+    field, as a single vertical "field line" spanning 0–100% of all players.
+
+    The single vertical field line is itself the axis: it runs 0→100% of the
+    worldwide field (higher = better) with stub marks at the quartiles, and
+    avatars sit directly on it (top scorer drawn last so it wins overlaps).
+    Each manager's row reads "x,xxx pts (top x%)  name", the variable-length
+    name kept last (right-aligned block) so the name column lines up.
+    Quartiles are exact because they are percentiles, not point thresholds.
+
+    Args:
+        standing:      Output of calculate_global_standing —
+                       {fpl_name: {"overall_rank", "total_points", "percentile"}}.
+        total_players: Global FPL entry count, used for the subtitle context.
+        config:        League config for display names, colours, avatars.
+        output_path:   Destination PNG path.
+        gameweek:      Snapshot gameweek (for the subtitle), optional.
+        subtitle:      Optional subtitle override; derived when omitted.
+    """
+    if not standing:
+        return
+
+    # x positions are axes fractions: xlim is 0–1, so data x == fraction. The
+    # field line sits near the left; the manager rows fill the space rightward.
+    line_x   = 0.077  # the field line / avatar column (kept far left so the
+                      # joining lines have room to run out to the labels)
+    block_x  = 0.56   # right edge of the "x,xxx pts (top x%)" column
+    name_x   = 0.62   # left edge of the name column
+
+    fig, ax = plt.subplots(figsize=(4.0, 11))
+
+    if subtitle is None:
+        bits = []
+        if gameweek is not None:
+            bits.append(f"After GW{gameweek}")
+        if total_players:
+            bits.append(f"{total_players / 1e6:.1f}M players worldwide")
+        subtitle = "  ·  ".join(bits) or None
+
+    render.apply_line_style(
+        fig, ax,
+        title="Global Standing",
+        ylabel="",
+        subtitle=subtitle,
+    )
+
+    # The vertical line IS the axis here, so strip all the usual furniture:
+    # no ticks, no grid, no spines.
+    ax.set_xlabel("")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.yaxis.grid(False)
+    ax.spines["left"].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(-6, 106)
+
+    # The field line — a 0→100 axis the avatars sit on — with the weekly-scores
+    # glow treatment (thick transparent pass, then a crisp thin pass).
+    for width, alpha, z in ((render.GLOW_WIDTH, render.GLOW_ALPHA, 2), (1.5, 0.55, 3)):
+        ax.plot(
+            [line_x, line_x], [0, 100],
+            color=render.TEXT_SECONDARY, linewidth=width, alpha=alpha,
+            zorder=z, solid_capstyle="round",
+        )
+
+    # Stub marks at the ends (0/100) and quartiles of the field line.
+    stub_half = 0.037
+    for y in (0, 25, 50, 75, 100):
+        ax.plot(
+            [line_x - stub_half, line_x + stub_half], [y, y],
+            color=render.TEXT_SECONDARY, linewidth=1.5, alpha=0.7, zorder=4,
+            solid_capstyle="round",
+        )
+
+    # Draw avatars bottom-to-top so the best-placed manager sits on top, and
+    # collect each row's (true position, top %, points, name, colour).
+    draw_order = sorted(standing.items(), key=lambda kv: kv[1]["percentile"])
+    rows: list[tuple] = []
+    for idx, (fpl_name, info) in enumerate(draw_order):
+        manager_cfg = config.get_manager(fpl_name)
+        colour = manager_cfg.colour if manager_cfg else "#888888"
+        display_name = manager_cfg.display_name if manager_cfg else fpl_name
+        avatar = render.load_avatar(
+            manager_cfg.avatar_path if manager_cfg else None,
+            display_name,
+            colour,
+            size=render.AVATAR_PHOTO_PX_LINE,
+        )
+        render.place_avatar_ringed(
+            ax,
+            x=line_x,
+            y=info["percentile"],
+            avatar_rgba=avatar,
+            ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_LINE,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_LINE,
+            zorder=10 + idx,
+        )
+        rows.append((
+            info["percentile"],
+            100.0 - info["percentile"],
+            int(info["total_points"]),
+            display_name,
+            colour,
+        ))
+
+    # Spread the rows apart so clustered managers (often bunched near the top)
+    # stay legible, then draw each as three aligned columns with a faint leader
+    # back to the avatar's true position on the line.
+    min_gap = 3.0
+    placed_y = float("-inf")
+    for true_y, top_pct, pts, name, colour in sorted(rows, key=lambda r: r[0]):
+        label_y = max(true_y, placed_y + min_gap)
+        placed_y = label_y
+        ax.plot(
+            [line_x, 0.213], [true_y, label_y],
+            color=colour, alpha=0.3, linewidth=1.0, zorder=5,
+            solid_capstyle="round",
+        )
+        ax.text(block_x, label_y, f"{pts:,} pts   (top {top_pct:.1f}%)",
+                ha="right", va="center",
+                color=colour, fontsize=10, fontweight="bold", clip_on=False, zorder=6)
+        ax.text(name_x, label_y, name, ha="left", va="center",
+                color=colour, fontsize=10, fontweight="bold", clip_on=False, zorder=6)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.92])
+    # Avatar-heavy figure — same bbox caveat as the per-point weekly chart.
+    render.save_figure(fig, output_path, tight_bbox=False)
 
 
 # ---------------------------------------------------------------------------

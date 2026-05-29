@@ -92,23 +92,36 @@ ROW_HEIGHT      = 0.9        # inches per manager row for bar charts
 ROW_PADDING     = 0.9        # extra inches for title + axis
 BAR_HEIGHT      = 0.55       # fraction of row height used by the bar itself
 
-AVATAR_SIZE_BAR    = 92        # px — total avatar incl. border on bar chart tip
-AVATAR_SIZE_LINE   = 52        # px — total avatar incl. border on line chart endpoint
-AVATAR_SIZE_LEGEND = 80        # px — avatar on the legend cover sheet (no border)
-AVATAR_ZOOM_BAR  = 0.37      # OffsetImage zoom for bar charts
-AVATAR_ZOOM_LINE = 0.27      # OffsetImage zoom for line charts
+# --- Vector-ring avatars (place_avatar_ringed) -----------------------------
+# The coloured border is drawn as a scatter marker in points space rather than
+# baked into the raster, so its edge is rasterised crisply at output DPI and
+# never shows resampling stair-stepping. Sizes are in points (DPI-independent):
+# the on-screen diameter is `diameter_pt` regardless of FIGURE_DPI.
+#
+# The bar-tip outer diameter matches the old raster avatar (92 px * 0.37 zoom
+# ≈ 34 pt) so layout/label clearance is unchanged. The photo bitmap is rendered
+# well above its ~62 px displayed size so matplotlib always downsamples it.
+AVATAR_DIAMETER_PT_BAR   = 34.0   # outer ring diameter on bar charts, in points
+AVATAR_RING_WIDTH_PT_BAR = 3.0    # ring stroke thickness, in points
+AVATAR_PHOTO_PX_BAR      = 128    # photo bitmap resolution for ringed bar avatars
 
-# Border thickness as a fraction of total avatar diameter.
-# Tuned so the inner picture stays roughly the original ~72 px (visually
-# unchanged from the pre-border avatar) and the colour ring sits just
-# outside it. Avatar overflows the bar a touch, which is fine; making it
-# any wider crowds the manager name label on zero-value bars.
-AVATAR_BORDER_RATIO_BAR  = 0.09
-AVATAR_BORDER_RATIO_LINE = 0.15
+# Line-chart avatars are smaller (52 px * 0.27 zoom ≈ 14 pt under the old
+# baked-border path). The photo bitmap (~24 px displayed) is rendered well
+# above that so matplotlib downsamples it.
+AVATAR_DIAMETER_PT_LINE   = 14.0
+AVATAR_RING_WIDTH_PT_LINE = 2.0
+AVATAR_PHOTO_PX_LINE      = 64
+
+# Legend cover-sheet avatars are the largest (80 px * 0.518 zoom ≈ 41 pt) and,
+# under the old path, the only ones matplotlib upscaled. The 160 px photo
+# bitmap now downsamples to ~74 px displayed.
+AVATAR_DIAMETER_PT_LEGEND   = 41.0
+AVATAR_RING_WIDTH_PT_LEGEND = 3.5
+AVATAR_PHOTO_PX_LEGEND      = 160
 
 # Approx half-width of a bar-tip avatar, expressed as a fraction of x_max.
 # Used to position labels past the avatar that would otherwise sit under it.
-# Empirical — tuned to clear AVATAR_SIZE_BAR at AVATAR_ZOOM_BAR.
+# Empirical — tuned to clear an AVATAR_DIAMETER_PT_BAR-wide avatar.
 AVATAR_HALF_WIDTH_FRACTION = 0.025
 
 # A bar segment must be at least this fraction of x_max to hold its label
@@ -133,65 +146,39 @@ def load_avatar(
     path: Optional[Path],
     display_name: str,
     colour: str,
-    size: int = AVATAR_SIZE_BAR,
-    border_colour: Optional[str] = None,
-    border_ratio: float = 0.0,
+    size: int = AVATAR_PHOTO_PX_BAR,
 ) -> np.ndarray:
     """
-    Load a circular avatar image as an RGBA numpy array.
+    Load a circular avatar photo as an RGBA numpy array, with no border.
 
     If `path` is None or the file can't be opened, falls back to a filled
-    circle in `colour` with the manager's initials in white.
-
-    When `border_colour` is provided and `border_ratio > 0`, the avatar is
-    composited inside a coloured ring of `border_ratio * size` thickness.
-    The total output diameter is still `size`; the inner avatar is shrunk
-    to make room for the ring.
+    circle in `colour` with the manager's initials in white. The coloured
+    border is drawn separately as a vector ring by `place_avatar_ringed`.
 
     Args:
         path:          Absolute path to an image file, or None.
         display_name:  Used to generate initials for the fallback avatar.
         colour:        Hex colour string for the fallback circle.
-        size:          Total output size in pixels (square), including border.
-        border_colour: Hex colour for the surrounding ring, or None for no ring.
-        border_ratio:  Border thickness as a fraction of `size`. Ignored when
-                       `border_colour` is None.
+        size:          Output size in pixels (square).
 
     Returns:
         RGBA numpy array of shape (size, size, 4).
     """
-    has_border = border_colour is not None and border_ratio > 0
-    if has_border:
-        border_px = max(1, int(round(size * border_ratio)))
-        inner_size = size - 2 * border_px
-    else:
-        inner_size = size
-
     img: Optional[Image.Image] = None
 
     if path is not None:
         try:
             img = Image.open(path).convert("RGBA").resize(
-                (inner_size, inner_size), Image.LANCZOS
+                (size, size), Image.LANCZOS
             )
         except Exception as e:
             print(f"Warning: could not load avatar from {path}: {e}")
             img = None
 
     if img is None:
-        img = _make_initials_avatar(display_name, colour, inner_size)
+        img = _make_initials_avatar(display_name, colour, size)
 
-    inner_img = _apply_circular_mask(img)
-
-    if not has_border:
-        return np.array(inner_img)
-
-    # Solid square fill so the outer AA mask blends with border colour
-    # instead of transparent corners.
-    canvas = Image.new("RGBA", (size, size), border_colour)
-    canvas.paste(inner_img, (border_px, border_px), inner_img)
-    canvas = _apply_circular_mask(canvas)
-    return np.array(canvas)
+    return np.array(_apply_circular_mask(img))
 
 
 def _lighten_colour(hex_colour: str, factor: float = 0.65) -> str:
@@ -269,32 +256,51 @@ def _apply_circular_mask(img: Image.Image) -> Image.Image:
     return img
 
 
-def place_avatar(
+def place_avatar_ringed(
     ax: matplotlib.axes.Axes,
     x: float,
     y: float,
     avatar_rgba: np.ndarray,
-    zoom: float = AVATAR_ZOOM_BAR,
+    ring_colour: str,
+    *,
+    diameter_pt: float,
+    ring_width_pt: float,
+    photo_overlap_pt: float = 1.5,
     zorder: float = 10,
 ) -> None:
     """
-    Place a circular avatar image centred on the data coordinate (x, y).
+    Place a circular avatar with a crisp vector ring as its border.
 
-    The centre of the image is pinned to (x, y) via box_alignment=(0.5, 0.5),
-    which means a zero-value bar will show the avatar half-overlapping the
-    y-axis, and a non-zero bar will show it sitting at the bar's right tip.
+    The ring is a scatter marker drawn in points space rather than baked into
+    the bitmap. It stays perfectly circular regardless of axis scaling and is
+    rasterised at output DPI, so its edge never shows the resampling
+    stair-stepping a baked-in raster border does.
+
+    The photo is sized to tuck its own (resampled) circular edge just under the
+    ring's inner stroke, so the only visible geometry is the two sharp vector
+    edges of the ring.
 
     Args:
-        ax:          The matplotlib Axes to draw on.
-        x:           Data x-coordinate (bar value, or line chart x position).
-        y:           Data y-coordinate (bar index, or line chart y position).
-        avatar_rgba: RGBA numpy array from load_avatar().
-        zoom:        OffsetImage zoom factor. Use AVATAR_ZOOM_BAR for bar
-                     charts and AVATAR_ZOOM_LINE for line charts.
-        zorder:      Stacking order — higher draws on top of lower. Default
-                     puts avatars above lines/bars; callers can stagger this
-                     to control overlap between avatars themselves.
+        ax:               The matplotlib Axes to draw on.
+        x, y:             Data coordinate for the avatar centre.
+        avatar_rgba:      Circular-masked photo RGBA (no baked border), from
+                          load_avatar().
+        ring_colour:      Hex colour for the ring stroke.
+        diameter_pt:      Outer diameter of the ring, in points (DPI-independent).
+        ring_width_pt:    Ring stroke thickness, in points.
+        photo_overlap_pt: How far the photo extends under the ring's inner edge.
+        zorder:           Stacking order for the photo; the ring sits just above.
     """
+    # scatter draws the stroke centred on a circle of diameter `marker_path_pt`,
+    # so the stroke spans [path - width, path + width]/2 about that radius.
+    # Choosing path = diameter - width makes the outer edge land at diameter_pt.
+    marker_path_pt = diameter_pt - ring_width_pt
+    inner_edge_pt = marker_path_pt - ring_width_pt
+    photo_diameter_pt = inner_edge_pt + photo_overlap_pt
+
+    bitmap_px = avatar_rgba.shape[0]
+    zoom = photo_diameter_pt / bitmap_px
+
     imagebox = OffsetImage(avatar_rgba, zoom=zoom)
     imagebox.image.axes = ax
     ab = AnnotationBbox(
@@ -306,6 +312,15 @@ def place_avatar(
         zorder=zorder,
     )
     ax.add_artist(ab)
+
+    ax.scatter(
+        [x], [y],
+        s=marker_path_pt ** 2,
+        facecolors="none",
+        edgecolors=ring_colour,
+        linewidths=ring_width_pt,
+        zorder=zorder + 0.1,
+    )
 
 
 # ---------------------------------------------------------------------------

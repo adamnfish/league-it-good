@@ -24,6 +24,9 @@ Rank = int
 WeeklySeries = Dict[ManagerName, List[Tuple[Gameweek, Points]]]
 RankSeries = Dict[ManagerName, List[Tuple[Gameweek, Rank]]]
 
+# {manager_fpl_name: {"overall_rank": int, "total_points": int, "percentile": float}}
+GlobalStanding = Dict[ManagerName, Dict[str, float]]
+
 
 # ---------------------------------------------------------------------------
 # Core time series functions
@@ -237,6 +240,79 @@ def calculate_score_consistency(
         }
 
     return consistency
+
+
+# ---------------------------------------------------------------------------
+# Global standing (single-gameweek snapshot)
+# ---------------------------------------------------------------------------
+
+def calculate_global_standing(
+    league_id: int,
+    gameweek: int,
+) -> Tuple[GlobalStanding, int]:
+    """
+    Return each league manager's standing within the entire global FPL field
+    at a single gameweek.
+
+    For every manager in the league, reads their cached season history
+    (fpl.fetch_manager_history) and pulls the overall_rank / total_points
+    recorded for `gameweek`. If that exact week is missing from a manager's
+    history (e.g. they joined late), falls back to the latest earlier week
+    present. The global field size comes from bootstrap-static's
+    total_players, which lets each rank be expressed as a percentile of all
+    FPL players.
+
+    Reads are cache-first via the fpl module — no new API endpoints.
+
+    Args:
+        league_id: League ID.
+        gameweek:  Snapshot gameweek (typically the latest rendered).
+
+    Returns:
+        A tuple of (standing, total_players) where standing maps each
+        manager's FPL name to {"overall_rank", "total_points", "percentile"}.
+        percentile runs 0–100, higher = better (rank 1 ≈ 100). Managers with
+        no usable history are omitted. total_players is 0 if bootstrap data
+        is unavailable.
+    """
+    records = fpl.load_gameweek_scores(league_id, gameweek)
+    if not records:
+        return {}, 0
+
+    bootstrap = fpl.fetch_bootstrap_data(gameweek) or {}
+    total_players = bootstrap.get("total_players", 0) or 0
+
+    standing: GlobalStanding = {}
+
+    for manager in records:
+        history = fpl.fetch_manager_history(manager["entry"], gameweek)
+        if not history:
+            continue
+
+        current = history.get("current") or []
+
+        # Prefer the exact gameweek; else the latest week on or before it.
+        snapshot = next(
+            (e for e in current if e.get("event") == gameweek), None
+        )
+        if snapshot is None:
+            earlier = [e for e in current if e.get("event", 0) <= gameweek]
+            snapshot = max(earlier, key=lambda e: e.get("event", 0), default=None)
+        if snapshot is None:
+            continue
+
+        overall_rank = snapshot.get("overall_rank")
+        total_points = snapshot.get("total_points")
+        if not overall_rank or total_players <= 0:
+            continue
+
+        standing[manager["player_name"]] = {
+            "overall_rank": overall_rank,
+            "total_points": total_points,
+            "percentile": 100.0 * (1 - overall_rank / total_players),
+        }
+
+    return standing, total_players
 
 
 # ---------------------------------------------------------------------------

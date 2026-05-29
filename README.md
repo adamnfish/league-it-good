@@ -71,9 +71,12 @@ lig --help
 ### Graphs
 
 `lig graphs` renders a folder of PNG charts (cover-sheet legend, weekly
-scores, league position, cumulative points, wins/losses, bench points,
-transfer costs, positional breakdown, consistency, and one chart per chip)
-for a league. Output goes to `~/.fpl-tools/graphs/<league-id>/`.
+scores, league position, cumulative points, global standing, wins/losses,
+bench points, transfer costs, positional breakdown, consistency, and one
+chart per chip) for a league. Output goes to
+`~/.fpl-tools/graphs/<league-id>/`. The global standing chart places every
+manager on the worldwide field as a percentile (with top 25/50/75% reference
+lines), so you can see where the league sits among all FPL players.
 
 Each league needs a small TOML config holding display names and per-manager
 colours. Bootstrap one from cached data:

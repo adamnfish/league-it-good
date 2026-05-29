@@ -197,9 +197,7 @@ def render_chip_chart(
             manager_cfg.avatar_path if manager_cfg else None,
             display_name,
             colour,
-            size=render.AVATAR_SIZE_BAR,
-            border_colour=colour,
-            border_ratio=render.AVATAR_BORDER_RATIO_BAR,
+            size=render.AVATAR_PHOTO_PX_BAR,
         )
 
         # 1. Grey background track the full width of the chart
@@ -272,7 +270,11 @@ def render_chip_chart(
 
         # 3. Avatar centred on the bar's total value
         #    Zero-value bars: avatar centre sits on the y-axis
-        render.place_avatar(ax, x=record["total"], y=i, avatar_rgba=avatar)
+        render.place_avatar_ringed(
+            ax, x=record["total"], y=i, avatar_rgba=avatar, ring_colour=colour,
+            diameter_pt=render.AVATAR_DIAMETER_PT_BAR,
+            ring_width_pt=render.AVATAR_RING_WIDTH_PT_BAR,
+        )
 
         # 3b. Narrow-segment labels, placed in the clear track to the right of
         #     the avatar (the bar tip) so they never overlap a later segment.
