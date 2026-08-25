@@ -18,21 +18,10 @@ Config schema:
 
 from __future__ import annotations
 
-import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
-
-# tomllib is stdlib from Python 3.11; fall back to tomli for older versions
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redef]
-    except ImportError as e:
-        raise ImportError(
-            "Python < 3.11 requires the 'tomli' package: pip install tomli"
-        ) from e
 
 
 # ---------------------------------------------------------------------------

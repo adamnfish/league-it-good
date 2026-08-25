@@ -50,13 +50,27 @@ FPL Tools is a Python application that generates Fantasy Premier League gameweek
 - Test with the provided league ID and gameweek 1 for consistency
 
 ### Testing
-- No formal test framework currently implemented
-- Manual testing by running against real FPL data
+- pytest suite under `tests/`; run it with `uv run pytest`
+- Also test manually against real FPL data
 - Cache system allows for consistent testing without API calls
 
-### Dependencies
-- Minimal external dependencies (currently just `requests`)
-- Standard library usage preferred where possible
+### Environment & Dependencies
+- **Use uv for environment and dependency work** - `uv sync` creates `.venv` and
+  installs from `uv.lock`. Do not use `pip` or `python -m venv` in this project.
+- Add/remove dependencies with `uv add` / `uv remove`, never by hand-editing
+  `pyproject.toml`, so `uv.lock` stays in step. Commit the lock file with the change.
+- Dev-only tools (pytest) live in the `dev` dependency group.
+- Run project commands via `uv run <cmd>` (e.g. `uv run lig --help`).
+- Toolchain is pinned for mise in `mise.toml` (uv) and `.python-version` (Python).
+  `mise install` provisions both.
+- **`.python-version` holds the Python version**, and is read by both uv and mise.
+  Python is not listed in `mise.toml`'s `[tools]`; `mise.toml` sets
+  `idiomatic_version_file_enable_tools = ["python"]` so mise reads that file
+  instead. Change the version there and nowhere else.
+- `requires-python` is `>=3.11`; `[tool.uv] required-version` additionally makes uv
+  refuse to run if it is older than 0.11 (`uv.lock` is revision 3, which earlier
+  uv releases cannot read).
+- Keep external dependencies minimal; prefer the standard library where practical.
 
 ## Future Enhancements Planned
 

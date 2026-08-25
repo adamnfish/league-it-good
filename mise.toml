@@ -1,0 +1,11 @@
+# Toolchain for league-it-good.
+#
+# Python is not listed here. The idiomatic_version_file_enable_tools setting
+# below tells mise to read `.python-version`, which uv also reads, so the
+# Python pin lives in one file that both tools agree on.
+
+[tools]
+uv = "0.11"
+
+[settings]
+idiomatic_version_file_enable_tools = ["python"]

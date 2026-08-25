@@ -31,20 +31,51 @@ A Python tool for generating comprehensive Fantasy Premier League gameweek summa
 
 ## Setup
 
-1. Create a virtual environment and install dependencies:
+This project uses [uv](https://docs.astral.sh/uv/) for dependency and
+environment management, and needs Python 3.11 or newer.
+
+The toolchain is pinned in `mise.toml` and `.python-version`, so if you use
+[mise](https://mise.jdx.dev/) both Python 3.13 and uv are provisioned for you:
 
 ```bash
-./setup.sh
+mise install
 ```
 
-2. Activate the virtual environment and install the package:
+Otherwise install uv 0.11 or newer yourself, and make sure Python 3.13 is
+available. Then:
+
+```bash
+uv sync
+```
+
+That creates `.venv`, installs the project and its dependencies from
+`uv.lock`, and makes the `lig` and `league-it-good` commands available.
+
+Run commands either through uv:
+
+```bash
+uv run lig --help
+```
+
+Or activate the virtual environment first:
 
 ```bash
 source .venv/bin/activate
-pip install -e .
+lig --help
 ```
 
-This makes the `lig` and `league-it-good` commands available.
+### Development
+
+`uv sync` installs the `dev` dependency group (pytest) by default. Run the
+test suite with:
+
+```bash
+uv run pytest
+```
+
+To add or remove a dependency, use `uv add <package>` or `uv remove <package>`
+rather than editing `pyproject.toml` by hand. This keeps `uv.lock` in step.
+Commit the updated `uv.lock` alongside the `pyproject.toml` change.
 
 ## Usage
 
