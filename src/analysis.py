@@ -399,21 +399,26 @@ def analyze_chip_availability(standings: list, gameweek: int, bootstrap_data: Di
         dict: Mapping of chip pattern to list of manager names
               e.g., {'BB, TC, WC, FH': ['Manager1', 'Manager2'], 'BB, TC, FH': ['Manager3']}
     """
-    # Build a map of which chip validity windows apply to this gameweek
-    # Each chip may have multiple instances (e.g., first half vs second half)
+    # Build a map of which chip validity window applies to this gameweek.
+    # Each chip has one window per half of the season, and a window can start
+    # after the half has begun (wildcard and free hit cannot be played in
+    # gameweek 1), so the window that applies is the earliest one that has not
+    # finished yet. A manager still holds a chip whose window is upcoming.
     chip_windows = {}
 
-    if 'chips' in bootstrap_data:
-        for chip_def in bootstrap_data['chips']:
-            chip_name = chip_def.get('name')
-            start_event = chip_def.get('start_event')
-            stop_event = chip_def.get('stop_event')
+    for chip_def in bootstrap_data.get('chips', []):
+        chip_name = chip_def.get('name')
+        start_event = chip_def.get('start_event')
+        stop_event = chip_def.get('stop_event')
 
-            if chip_name and start_event and stop_event:
-                # Check if this chip instance is valid for the current gameweek
-                if start_event <= gameweek <= stop_event:
-                    # Store the validity window for this chip
-                    chip_windows[chip_name] = (start_event, stop_event)
+        if not (chip_name and start_event and stop_event):
+            continue
+        if stop_event < gameweek:
+            continue
+
+        existing = chip_windows.get(chip_name)
+        if existing is None or start_event < existing[0]:
+            chip_windows[chip_name] = (start_event, stop_event)
 
     # Track which chips each manager has available
     manager_chips = {}
