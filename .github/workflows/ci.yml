@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          # Takes the uv version from required-version in pyproject.toml.
+          version-file: "pyproject.toml"
+
+      - name: Install Python
+        # Reads .python-version, the same file mise and uv use locally.
+        run: uv python install
+
+      - name: Install dependencies
+        # --locked fails the build if uv.lock is out of step with pyproject.toml.
+        run: uv sync --locked
+
+      - name: Run tests
+        run: uv run pytest
