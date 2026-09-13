@@ -463,18 +463,26 @@ def _format_multirow_gameweeks(gw_cells: Dict[int, str], min_gw: int, max_gw: in
     return rows
 
 
-def format_admin_table(league_data: Dict[int, Dict[str, Any]]) -> None:
+def format_admin_table(league_data: Dict[int, Dict[str, Any]],
+                       season_labels: Optional[List[str]] = None) -> None:
     """
     Display administrative table of cached leagues.
 
     Args:
         league_data: Cached league data from storage module
+        season_labels: Seasons of the data, shown at the right of the title line
     """
     if not league_data:
         print("No cached league data found")
         return
 
-    print("📊 Cached League Data")
+    title = "📊 Cached League Data"
+    if season_labels:
+        label = "Season " + ", ".join(season_labels)
+        # The emoji takes two columns, so the title is one column wider than its length
+        padding = max(1, 80 - (len(title) + 1) - len(label))
+        title += " " * padding + click.style(label, dim=True)
+    print(title)
     print("=" * 80)
 
     # Find the maximum gameweek across all leagues

@@ -15,7 +15,6 @@ import os
 import re
 import tempfile
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Callable, Dict, List, Optional
 
 from . import storage
@@ -43,23 +42,6 @@ class Transfers:
     overwritten: List[str]
     # Conflicting files left unchanged on both sides
     skipped_conflicts: List[str]
-
-
-def current_season(today: Optional[date] = None) -> str:
-    """
-    Season label for a date, e.g. "2026-27".
-
-    A season is taken to start in July, shortly before the FPL game opens.
-
-    Args:
-        today: Date to use (default: today)
-
-    Returns:
-        str: Season label
-    """
-    today = today or date.today()
-    start_year = today.year if today.month >= 7 else today.year - 1
-    return f"{start_year}-{(start_year + 1) % 100:02d}"
 
 
 def remote_prefix(season: str) -> str:

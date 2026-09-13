@@ -14,17 +14,25 @@ import os
 from pathlib import Path
 
 import click
-from . import storage, fpl, analysis, display, stats, sync
+import requests
+from . import storage, fpl, analysis, display, season, stats, sync
 
 
 class GroupedCommands(click.Group):
     """Custom Click Group that organizes commands into sections."""
 
+    def invoke(self, ctx):
+        """Show season errors from any command as a plain error message."""
+        try:
+            return super().invoke(ctx)
+        except season.SeasonError as e:
+            raise click.ClickException(str(e))
+
     def format_commands(self, ctx, formatter):
         """Format commands into grouped sections."""
         # Define command groups
         command_groups = {
-            'FPL Commands': ['leagues', 'gen', 'fetch'],
+            'FPL Commands': ['leagues', 'season', 'gen', 'fetch'],
             'Stats & Graphs': ['stats', 'graphs', 'graphs-config'],
             'Backup Commands': ['backups', 'export', 'import', 'describe', 'sync']
         }
@@ -495,6 +503,14 @@ def fetch(league_id, gameweek, all, force, dry_run):
 
     print(f"🔄 Fetching data for Gameweek {gameweek}...\n")
 
+    # Stop before writing anything if the API is serving a different season from the cache
+    if not dry_run:
+        try:
+            fpl.check_live_season()
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error: Could not fetch bootstrap data to check the season: {e}")
+            return
+
     # Determine target leagues
     if all:
         league_data = storage.get_cached_league_data()
@@ -640,7 +656,7 @@ def fetch(league_id, gameweek, all, force, dry_run):
 def leagues_cmd():
     """List all cached league IDs and their available gameweeks."""
     league_data = storage.get_cached_league_data()
-    display.format_admin_table(league_data)
+    display.format_admin_table(league_data, sorted(season.cache_seasons()))
 
 
 @cli.command('backups')
@@ -703,6 +719,10 @@ def import_backup_cmd(backup_name, use_full_path, dry_run):
         else:
             print(f"Importing from backup:\n{backup_path}\n")
 
+        # Stop before importing data from a different season to the cache
+        if season.check_backup(backup_path) is None:
+            print("⚠️  This backup has no bootstrap data, so its season can't be checked\n")
+
         # Perform import (or dry-run)
         import_result = storage.import_backup(backup_path, dry_run=dry_run)
 
@@ -728,6 +748,8 @@ def import_backup_cmd(backup_name, use_full_path, dry_run):
             print(f"↓ Total imported: {import_result['total_imported']} league/gameweek combinations ({import_result['file_count']} files)")
             print(f"- Total skipped: {import_result['total_skipped']} combinations (already exist)")
 
+    except season.SeasonError:
+        raise
     except FileNotFoundError as e:
         print(f"❌ Error: {e}")
     except Exception as e:
@@ -760,7 +782,7 @@ def describe(backup_name, use_full_path):
 
         # Display league data using existing format
         league_data = storage.describe_backup(backup_path)
-        display.format_admin_table(league_data)
+        display.format_admin_table(league_data, sorted(season.backup_seasons(backup_path)))
     except FileNotFoundError as e:
         print(f"❌ Error: {e}")
     except Exception as e:
@@ -777,9 +799,9 @@ def describe(backup_name, use_full_path):
               help='AWS CLI profile used for S3 calls (env: LIG_AWS_PROFILE)')
 @click.option('--bucket', '-b', envvar='LIG_S3_BUCKET', required=True,
               help='S3 bucket holding backups (env: LIG_S3_BUCKET)')
-@click.option('--season', '-s', envvar='LIG_SEASON', default=None,
-              help='Season folder in the bucket, e.g. 2026-27 (env: LIG_SEASON, default: current season)')
-def sync_cmd(mode, overwrite, dry_run, profile, bucket, season):
+@click.option('--season', '-s', 'season_label', envvar='LIG_SEASON', default=None,
+              help="Season folder in the bucket, e.g. 2026-27 (env: LIG_SEASON, default: the cache's season)")
+def sync_cmd(mode, overwrite, dry_run, profile, bucket, season_label):
     """Sync the cache with an S3 bucket.
 
     With no MODE, copies files that exist on only one side, in both
@@ -803,15 +825,27 @@ def sync_cmd(mode, overwrite, dry_run, profile, bucket, season):
         raise click.UsageError(
             "--overwrite needs a direction: use 'lig sync save --overwrite' or 'lig sync load --overwrite'"
         )
-    season = season or sync.current_season()
+
+    cache_season = season.get_cache_season()
+    if season_label is None:
+        if cache_season is None:
+            raise click.UsageError("The cache has no season yet, so --season (or LIG_SEASON) is needed")
+        season_label = cache_season
+    elif not season.is_season_label(season_label):
+        raise click.BadParameter(f"'{season_label}' is not a season such as 2026-27", param_hint="'--season'")
+    elif cache_season is not None and season_label != cache_season:
+        raise click.ClickException(
+            f"--season {season_label} does not match the cache, which holds {cache_season} data. "
+            f"Leave out --season to use the cache's season."
+        )
 
     if dry_run:
         click.echo("DRY RUN: No changes will be made\n")
-    click.echo(f"Syncing with s3://{bucket}/{sync.remote_prefix(season)} (profile: {profile})\n")
+    click.echo(f"Syncing with s3://{bucket}/{sync.remote_prefix(season_label)} (profile: {profile})\n")
 
     try:
         client = sync.make_client(profile)
-        plan = sync.plan_sync(sync.scan_local_cache(), sync.scan_remote(client, bucket, season))
+        plan = sync.plan_sync(sync.scan_local_cache(), sync.scan_remote(client, bucket, season_label))
         transfers = sync.select_transfers(plan, mode, overwrite)
 
         total = len(transfers.uploads) + len(transfers.downloads)
@@ -820,13 +854,62 @@ def sync_cmd(mode, overwrite, dry_run, profile, bucket, season):
                 safety_backup = storage.create_safety_backup(prefix="pre-sync")
                 click.echo(f"Created safety backup: {safety_backup}\n")
             with click.progressbar(length=total, label="Copying files") as bar:
-                sync.execute_transfers(client, bucket, season, transfers,
+                sync.execute_transfers(client, bucket, season_label, transfers,
                                        progress=lambda path: bar.update(1))
             click.echo()
     except (BotoCoreError, ClientError) as e:
         raise click.ClickException(f"S3 sync failed: {e}")
 
     display.format_sync_report(plan, transfers, mode, dry_run)
+
+
+@cli.group('season', invoke_without_command=True)
+@click.pass_context
+def season_group(ctx):
+    """Show the season held in the cache, or start a new season.
+
+    The season comes from the cached bootstrap data. Commands that write to
+    the cache stop with an error if the new data is from a different season.
+
+    \b
+    Examples:
+      lig season                                # Show the cached season
+      lig season start-new-season --dry-run     # Preview moving it aside
+    """
+    if ctx.invoked_subcommand is not None:
+        return
+
+    cached = season.get_cache_season()
+    if cached is None:
+        click.echo("The cache has no season yet. The next fetch from the FPL API sets it.")
+    else:
+        click.echo(f"Cached season: {cached}")
+
+
+@season_group.command('start-new-season')
+@click.option('--dry-run', is_flag=True, help='Show what would be moved without making changes')
+def start_new_season_cmd(dry_run):
+    """Move the cached season's data aside, ready for a new season.
+
+    Moves cache, summaries, graphs, backups, exports and config from the data
+    directory into a folder named after the season, e.g. 2026-27/. The next
+    fetch from the FPL API then starts the new season with an empty cache.
+
+    League configs and avatars move too. Copy back any you want to keep.
+    Stops without moving anything if a destination folder already exists.
+    """
+    label, moves = season.plan_new_season()
+    data_dir = storage.get_data_dir()
+
+    if dry_run:
+        click.echo("DRY RUN: No changes will be made\n")
+    click.echo(f"{'Would move' if dry_run else 'Moving'} {label} data into {os.path.join(data_dir, label)}\n")
+    for source, destination in moves:
+        click.echo(f"  {os.path.relpath(source, data_dir)} → {os.path.relpath(destination, data_dir)}")
+
+    if not dry_run:
+        season.start_new_season(moves)
+        click.echo("\nDone. The next fetch from the FPL API sets the new season.")
 
 
 if __name__ == "__main__":

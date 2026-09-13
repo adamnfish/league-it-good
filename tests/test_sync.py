@@ -12,7 +12,6 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-from datetime import date
 
 import pytest
 from click.testing import CliRunner
@@ -109,12 +108,6 @@ def run_sync(client: FakeS3, mode: str, overwrite: bool = False) -> sync.Transfe
     transfers = sync.select_transfers(plan, mode, overwrite)
     sync.execute_transfers(client, BUCKET, SEASON, transfers)
     return transfers
-
-
-def test_season_starts_in_july():
-    assert sync.current_season(date(2026, 6, 30)) == "2025-26"
-    assert sync.current_season(date(2026, 7, 1)) == "2026-27"
-    assert sync.current_season(date(2099, 9, 1)) == "2099-00"
 
 
 def test_plan_sync_classifies_each_file():
@@ -232,6 +225,24 @@ def test_cli_rejects_overwrite_without_mode():
 
     assert result.exit_code == 2
     assert "direction" in result.output
+
+
+def test_cli_needs_a_season_for_an_empty_cache(data_dir):
+    result = CliRunner().invoke(main.cli, ["sync", "--profile", "test", "--bucket", BUCKET],
+                                env={"LIG_SEASON": None})
+
+    assert result.exit_code == 2
+    assert "--season" in result.output
+
+
+def test_cli_rejects_season_that_does_not_match_the_cache(data_dir, monkeypatch):
+    write_local(data_dir, "gw1/bootstrap.json", content({"events": [{"id": 1, "deadline_time": "2025-08-15T17:30:00Z"}]}))
+    monkeypatch.setattr(sync, "make_client", lambda profile: FakeS3())
+
+    result = invoke()
+
+    assert result.exit_code == 1
+    assert "2025-26" in result.output
 
 
 def test_cli_dry_run_changes_nothing(data_dir, client, monkeypatch):
