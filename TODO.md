@@ -10,6 +10,8 @@
   - Both commands should maintain current functionality from the unified backup command
   - Update help text and documentation accordingly
   - Also created `lig describe` command for inspecting backup contents
+- [x] **S3 sync** - `lig sync` merges the cache with an S3 bucket, set up by `cloudformation/league-it-good-backups.yaml`
+- [ ] **Sync config** - Include `config/` (league TOML files and avatars) in `lig sync`
 
 ### Data Fetching
 - [x] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
