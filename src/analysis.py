@@ -80,7 +80,7 @@ def calculate_position_changes(current_standings: list, previous_standings: Opti
     return position_changes
 
 
-def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Dict[str, Any]]:
+def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[int, Dict[str, Any]]:
     """
     Analyze captain choices across all managers.
     
@@ -93,29 +93,30 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
         bootstrap_data: Bootstrap data for player lookups
     
     Returns:
-        dict: Mapping of player name to dict with 'points' and 'managers' list
+        dict: Mapping of player ID to dict with 'name', 'points' and 'managers' list
     """
     captain_choices = {}
-    
+
     for manager in standings:
         manager_data = fpl.fetch_manager_gameweek(manager['entry'], gameweek)
         if manager_data:
             active_chip = manager_data.get('active_chip')
-            
+
             for pick in manager_data['picks']:
-                player_name = fpl.get_player_name(pick['element'], bootstrap_data)
-                player_data = fpl.get_player_by_id(pick['element'], bootstrap_data)
-                
+                player_id = pick['element']
+                player_data = fpl.get_player_by_id(player_id, bootstrap_data)
+
                 if not player_data:
                     continue
-                
+
                 player_points = player_data['event_points']
-                
+
                 # Check if this is the active captain (multiplier = 2 or 3 for triple captain)
                 if pick['multiplier'] >= 2:
                     # Group by captain choice
-                    if player_name not in captain_choices:
-                        captain_choices[player_name] = {
+                    if player_id not in captain_choices:
+                        captain_choices[player_id] = {
+                            'name': fpl.get_player_name(player_id, bootstrap_data),
                             'points': player_points,
                             'managers': []
                         }
@@ -127,7 +128,7 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
                     if active_chip == '3xc':
                         manager_display += " *(x3)*"
                     
-                    captain_choices[player_name]['managers'].append(manager_display)
+                    captain_choices[player_id]['managers'].append(manager_display)
                     break
     
     return captain_choices
@@ -577,7 +578,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                     if player_data:
                         chip_returns['triple_captain'].append({
                             'manager': manager['player_name'],
-                            'player': fpl.get_player_short_name(pick['element'], bootstrap_data),
+                            'player': fpl.get_player_name(pick['element'], bootstrap_data),
                             'points': player_data['event_points']
                         })
                     break

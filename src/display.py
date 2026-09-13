@@ -21,7 +21,7 @@ def format_gameweek_summary(
     gameweek: int,
     standings: list,
     position_changes: Dict[int, Optional[int]],
-    captain_choices: Dict[str, Dict[str, Any]],
+    captain_choices: Dict[int, Dict[str, Any]],
     bench_stats: List[Dict[str, Any]],
     position_leaders: Dict[str, Dict[str, Any]],
     best_differential: Dict[str, Any],
@@ -229,18 +229,18 @@ def format_league_standings(standings: list, position_changes: Dict[int, Optiona
     return output
 
 
-def format_captain_analysis(captain_choices: Dict[str, Dict[str, Any]]) -> str:
+def format_captain_analysis(captain_choices: Dict[int, Dict[str, Any]]) -> str:
     """Format the captain analysis section."""
     output = "\n👑 *CAPTAINS LOG*\n"
-    
+
     # Sort by points, then by popularity
-    sorted_captains = sorted(captain_choices.items(), 
-                            key=lambda x: (x[1]['points'], len(x[1]['managers'])), 
+    sorted_captains = sorted(captain_choices.values(),
+                            key=lambda data: (data['points'], len(data['managers'])),
                             reverse=True)
-    
-    for captain_name, data in sorted_captains:
+
+    for data in sorted_captains:
         managers_str = ", ".join([f"_{manager}_" for manager in data['managers']])
-        output += f"{captain_name} ({data['points']} pts):\n  {managers_str}\n"
+        output += f"{data['name']} ({data['points']} pts):\n  {managers_str}\n"
     
     return output
 
