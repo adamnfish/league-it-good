@@ -806,3 +806,72 @@ def format_backups_list(backups: List[Dict[str, Any]], backups_dir: str) -> None
     filename_placeholder = click.style('<filename>', fg='cyan')
     print(f"\nTo inspect a backup: lig describe {filename_placeholder}")
     print(f"To import from backup: lig import {filename_placeholder} [--dry-run]")
+
+
+def format_sync_report(plan: Any, transfers: Any, mode: str, dry_run: bool) -> None:
+    """
+    Display the result of lig sync, grouped by gameweek.
+
+    Args:
+        plan: sync.SyncPlan comparing local and remote files
+        transfers: sync.Transfers chosen for this run
+        mode: 'both', 'save' or 'load'
+        dry_run: True if nothing was copied
+    """
+    all_paths = plan.local_only + plan.remote_only + plan.identical + plan.conflicts
+    if not all_paths:
+        print("No cache files found locally or in S3")
+        return
+
+    def gameweek(path: str) -> int:
+        return int(path.split('/')[0][2:])
+
+    def count(paths: List[str], gw: int) -> int:
+        return sum(1 for path in paths if gameweek(path) == gw)
+
+    overwrite_arrow = '↑' if mode == 'save' else '↓'
+
+    print("=" * 80)
+    print(f"{'GW':<5} {'↑ Up':>6} {'↓ Down':>7} {'= Same':>7}  Differs")
+    print("-" * 80)
+
+    for gw in sorted({gameweek(path) for path in all_paths}):
+        conflicts = []
+        for path in plan.conflicts:
+            if gameweek(path) == gw:
+                name = path.split('/')[1]
+                if path in transfers.overwritten:
+                    name = f"{name} {overwrite_arrow}"
+                conflicts.append(click.style(name, fg='yellow'))
+
+        up = count(transfers.uploads, gw)
+        down = count(transfers.downloads, gw)
+        same = count(plan.identical, gw)
+        print(f"{'GW' + str(gw):<5} {up:>6} {down:>7} {same:>7}  {', '.join(conflicts)}")
+
+    print()
+    print("Summary:")
+    print(f"↑ {'Would upload' if dry_run else 'Uploaded'}: {len(transfers.uploads)} file(s)")
+    print(f"↓ {'Would download' if dry_run else 'Downloaded'}: {len(transfers.downloads)} file(s)")
+    print(f"= Identical: {len(plan.identical)} file(s)")
+
+    if mode == 'save' and plan.remote_only:
+        print(f"- Not downloaded: {len(plan.remote_only)} file(s) only in S3 (run 'lig sync load' to fetch them)")
+    if mode == 'load' and plan.local_only:
+        print(f"- Not uploaded: {len(plan.local_only)} file(s) only in the local cache (run 'lig sync save' to upload them)")
+
+    if transfers.overwritten:
+        where = "S3" if mode == 'save' else "the local cache"
+        verb = "Would overwrite" if dry_run else "Overwrote"
+        print(click.style(f"! {verb} {len(transfers.overwritten)} file(s) in {where}", fg='yellow'))
+
+    if transfers.skipped_conflicts:
+        print()
+        print(click.style(
+            f"! {len(transfers.skipped_conflicts)} file(s) differ between the local cache and S3 "
+            f"and were left unchanged.", fg='yellow'))
+        print("  To keep the local copies: lig sync save --overwrite")
+        print("  To keep the S3 copies:    lig sync load --overwrite")
+
+    if dry_run:
+        print("\nRun without --dry-run to sync")

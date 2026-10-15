@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  S3 bucket for league-it-good cache backups, and the IAM role that `lig sync`
+  and the S3 console use to access it.
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: ""
+    Description: Name for the backup bucket. Leave blank to let CloudFormation generate one.
+  NoncurrentVersionRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days to keep previous versions of overwritten files.
+
+Conditions:
+  HasBucketName: !Not [!Equals [!Ref BucketName, ""]]
+
+Resources:
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !If [HasBucketName, !Ref BucketName, !Ref AWS::NoValue]
+      # Previous versions are kept so a file replaced by `lig sync save --overwrite` can be restored
+      VersioningConfiguration:
+        Status: Enabled
+      # lig sync compares files using ETags, which are only the MD5 of the contents with SSE-S3
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpirePreviousVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: !Ref NoncurrentVersionRetentionDays
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Project
+          Value: league-it-good
+
+  BackupBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BackupBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt BackupBucket.Arn
+              - !Sub "${BackupBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: "false"
+
+  SyncRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lig-backup-sync
+      Description: Read and write league-it-good backups, from lig sync or the S3 console.
+      # Any principal in this account whose own IAM policy allows sts:AssumeRole on this role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: backup-bucket-access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListBucketsInConsole
+                Effect: Allow
+                Action: s3:ListAllMyBuckets
+                Resource: "*"
+              - Sid: ReadBucket
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:ListBucketVersions
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                Resource: !GetAtt BackupBucket.Arn
+              - Sid: ReadWriteObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource: !Sub "${BackupBucket.Arn}/*"
+      Tags:
+        - Key: Project
+          Value: league-it-good
+
+Outputs:
+  BucketName:
+    Description: Bucket name, for --bucket or LIG_S3_BUCKET
+    Value: !Ref BackupBucket
+  RoleArn:
+    Description: Role ARN, for role_arn in an AWS CLI profile
+    Value: !GetAtt SyncRole.Arn
+  ConsoleSwitchRoleUrl:
+    Description: Switch to the role in the AWS console
+    Value: !Sub "https://signin.aws.amazon.com/switchrole?roleName=${SyncRole}&account=${AWS::AccountId}&displayName=lig-backup-sync"

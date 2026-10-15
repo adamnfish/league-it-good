@@ -480,9 +480,12 @@ def list_cached_gameweeks() -> List[int]:
     return sorted(gameweeks)
 
 
-def create_safety_backup() -> str:
+def create_safety_backup(prefix: str = "pre-import") -> str:
     """
-    Create timestamped safety backup of current cache before import.
+    Create timestamped safety backup of current cache before changing it.
+
+    Args:
+        prefix: Filename prefix (default: "pre-import")
 
     Returns:
         str: Path to created backup file
@@ -490,7 +493,7 @@ def create_safety_backup() -> str:
     Raises:
         FileNotFoundError: If cache directory doesn't exist or is empty
     """
-    backup_filename = generate_backup_filename(prefix="pre-import")
+    backup_filename = generate_backup_filename(prefix=prefix)
     backup_path = os.path.join(get_backups_dir(), backup_filename)
     return export_backup(backup_path)
 

@@ -139,6 +139,62 @@ lig graphs -l YOUR_LEAGUE_ID -g 1-20
 Charts read only from `~/.fpl-tools/cache/` — populate it with `lig fetch`
 or `lig gen` first.
 
+### Syncing backups to S3
+
+`lig sync` keeps the cache in step with an S3 bucket, so several machines can
+share the same data.
+
+Deploy the bucket and IAM role once:
+
+```bash
+aws cloudformation deploy \
+  --stack-name league-it-good-backups \
+  --template-file cloudformation/league-it-good-backups.yaml \
+  --capabilities CAPABILITY_NAMED_IAM
+
+aws cloudformation describe-stacks --stack-name league-it-good-backups \
+  --query 'Stacks[0].Outputs'
+```
+
+The outputs give the bucket name, the role ARN, and a link for switching to
+the role in the AWS console. Add a profile that assumes the role to
+`~/.aws/config`:
+
+```ini
+[profile lig]
+role_arn = arn:aws:iam::123456789012:role/lig-backup-sync
+source_profile = default
+```
+
+The source profile's user or role needs permission to call `sts:AssumeRole`
+on `lig-backup-sync`.
+
+Give the profile and bucket as options (`--profile`, `--bucket`) or
+environment variables:
+
+```bash
+export LIG_AWS_PROFILE=lig
+export LIG_S3_BUCKET=<bucket name from the stack outputs>
+
+lig sync --dry-run    # Preview
+lig sync              # Copy files missing on either side
+lig sync save         # Upload only
+lig sync load         # Download only
+```
+
+Files are stored under `<season>/cache/` in the bucket. The season defaults to
+the current one (e.g. `2026-27`, changing each July). Use `--season` or
+`LIG_SEASON` to choose another.
+
+Sync never deletes files. A file that exists on both sides with different
+contents is listed in the report and left unchanged. To replace these files,
+give a direction:
+
+- `lig sync save --overwrite` replaces the S3 copies with the local ones. The
+  bucket keeps previous versions for 90 days.
+- `lig sync load --overwrite` replaces the local copies with the S3 ones,
+  after writing a `pre-sync-*.zip` backup to the backups directory.
+
 ## Output
 
 ### Gameweek Summaries

@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 
 import click
-from . import storage, fpl, analysis, display, stats
+from . import storage, fpl, analysis, display, stats, sync
 
 
 class GroupedCommands(click.Group):
@@ -26,7 +26,7 @@ class GroupedCommands(click.Group):
         command_groups = {
             'FPL Commands': ['leagues', 'gen', 'fetch'],
             'Stats & Graphs': ['stats', 'graphs', 'graphs-config'],
-            'Backup Commands': ['backups', 'export', 'import', 'describe']
+            'Backup Commands': ['backups', 'export', 'import', 'describe', 'sync']
         }
 
         # Get all commands
@@ -765,6 +765,68 @@ def describe(backup_name, use_full_path):
         print(f"❌ Error: {e}")
     except Exception as e:
         print(f"❌ Failed to describe backup: {e}")
+
+
+@cli.command('sync')
+@click.argument('mode', required=False, type=click.Choice(['save', 'load']))
+@click.option('--overwrite', is_flag=True,
+              help='Replace files that differ, in the direction given by MODE')
+@click.option('--dry-run', is_flag=True,
+              help='Show what would be copied without making changes')
+@click.option('--profile', '-p', envvar='LIG_AWS_PROFILE', required=True,
+              help='AWS CLI profile used for S3 calls (env: LIG_AWS_PROFILE)')
+@click.option('--bucket', '-b', envvar='LIG_S3_BUCKET', required=True,
+              help='S3 bucket holding backups (env: LIG_S3_BUCKET)')
+@click.option('--season', '-s', envvar='LIG_SEASON', default=None,
+              help='Season folder in the bucket, e.g. 2026-27 (env: LIG_SEASON, default: current season)')
+def sync_cmd(mode, overwrite, dry_run, profile, bucket, season):
+    """Sync the cache with an S3 bucket.
+
+    With no MODE, copies files that exist on only one side, in both
+    directions. 'save' only uploads and 'load' only downloads.
+
+    Files that exist on both sides with different contents are reported and
+    left unchanged. Pass --overwrite with a MODE to replace them in that
+    direction. 'load --overwrite' creates a safety backup first.
+
+    \b
+    Examples:
+      lig sync                      # Copy missing files both ways
+      lig sync --dry-run            # Preview without making changes
+      lig sync save                 # Upload local files missing from S3
+      lig sync load --overwrite     # Replace local files that differ from S3
+    """
+    from botocore.exceptions import BotoCoreError, ClientError
+
+    mode = mode or 'both'
+    if overwrite and mode == 'both':
+        raise click.UsageError(
+            "--overwrite needs a direction: use 'lig sync save --overwrite' or 'lig sync load --overwrite'"
+        )
+    season = season or sync.current_season()
+
+    if dry_run:
+        click.echo("DRY RUN: No changes will be made\n")
+    click.echo(f"Syncing with s3://{bucket}/{sync.remote_prefix(season)} (profile: {profile})\n")
+
+    try:
+        client = sync.make_client(profile)
+        plan = sync.plan_sync(sync.scan_local_cache(), sync.scan_remote(client, bucket, season))
+        transfers = sync.select_transfers(plan, mode, overwrite)
+
+        total = len(transfers.uploads) + len(transfers.downloads)
+        if not dry_run and total:
+            if mode == 'load' and transfers.overwritten:
+                safety_backup = storage.create_safety_backup(prefix="pre-sync")
+                click.echo(f"Created safety backup: {safety_backup}\n")
+            with click.progressbar(length=total, label="Copying files") as bar:
+                sync.execute_transfers(client, bucket, season, transfers,
+                                       progress=lambda path: bar.update(1))
+            click.echo()
+    except (BotoCoreError, ClientError) as e:
+        raise click.ClickException(f"S3 sync failed: {e}")
+
+    display.format_sync_report(plan, transfers, mode, dry_run)
 
 
 if __name__ == "__main__":
