@@ -80,7 +80,8 @@ def calculate_position_changes(current_standings: list, previous_standings: Opti
     return position_changes
 
 
-def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Dict[str, Any]]:
+def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any],
+                            player_points: Dict[int, int]) -> Dict[str, Dict[str, Any]]:
     """
     Analyze captain choices across all managers.
     
@@ -91,6 +92,7 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
+        player_points: Player ID to points scored this gameweek
     
     Returns:
         dict: Mapping of player name to dict with 'points' and 'managers' list
@@ -109,14 +111,14 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
                 if not player_data:
                     continue
                 
-                player_points = player_data['event_points']
+                points = player_points.get(pick['element'], 0)
                 
                 # Check if this is the active captain (multiplier = 2 or 3 for triple captain)
                 if pick['multiplier'] >= 2:
                     # Group by captain choice
                     if player_name not in captain_choices:
                         captain_choices[player_name] = {
-                            'points': player_points,
+                            'points': points,
                             'managers': []
                         }
                     
@@ -133,7 +135,8 @@ def analyze_captain_choices(standings: list, gameweek: int, bootstrap_data: Dict
     return captain_choices
 
 
-def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
+def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any],
+                              player_points: Dict[int, int]) -> Dict[str, Any]:
     """
     Find the highest scoring player owned by only one manager (6+ points, no ties).
     
@@ -141,6 +144,7 @@ def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Di
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
+        player_points: Player ID to points scored this gameweek
     
     Returns:
         dict: Result with 'result' (player info or None) and 'reason'
@@ -165,7 +169,7 @@ def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Di
         if len(managers) == 1:  # Only owned by one manager
             player_data = fpl.get_player_by_id(player_id, bootstrap_data)
             if player_data:
-                points = player_data['event_points']
+                points = player_points.get(player_id, 0)
                 if points >= 6:  # Must have at least 6 points
                     unique_picks[player_id] = {
                         'manager': managers[0],
@@ -188,7 +192,8 @@ def analyze_best_differential(standings: list, gameweek: int, bootstrap_data: Di
         return {'result': None, 'reason': 'tie', 'tied_count': len(top_picks), 'tied_points': max_points}
 
 
-def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Optional[List[Dict[str, Any]]]:
+def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any],
+                      player_points: Dict[int, int]) -> Optional[List[Dict[str, Any]]]:
     """
     Analyze transfer activity and performance.
 
@@ -199,6 +204,7 @@ def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, 
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
+        player_points: Player ID to points scored this gameweek
 
     Returns:
         list: Transfer stats for each manager, or None if gameweek 1
@@ -270,7 +276,7 @@ def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, 
         for player_id in new_players:
             player_data = fpl.get_player_by_id(player_id, bootstrap_data)
             if player_data:
-                points = player_data['event_points']
+                points = player_points.get(player_id, 0)
                 # Check if player was in starting XI (not bench)
                 for pick in current_data['picks']:
                     if pick['element'] == player_id and pick['multiplier'] > 0:
@@ -295,7 +301,8 @@ def analyze_transfers(standings: list, gameweek: int, bootstrap_data: Dict[Any, 
     return transfer_stats
 
 
-def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
+def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any],
+                                player_points: Dict[int, int]) -> Dict[str, Any]:
     """
     Analyze bench points and positional performance.
     
@@ -303,6 +310,7 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
+        player_points: Player ID to points scored this gameweek
     
     Returns:
         dict: Contains 'bench_stats' and 'position_leaders'
@@ -325,7 +333,7 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
             if not player_data:
                 continue
             
-            player_points = player_data['event_points']
+            points = player_points.get(pick['element'], 0)
             
             # For bench boost, positions 12-15 are the bench (even though multiplier is 1)
             # Otherwise, bench players have multiplier 0
@@ -336,11 +344,11 @@ def analyze_bench_and_positions(standings: list, gameweek: int, bootstrap_data: 
                 is_bench = pick['multiplier'] == 0
             
             if is_bench:
-                bench_points += player_points
+                bench_points += points
             else:
                 playing_squad.append({
                     'player_data': player_data,
-                    'points': player_points * pick['multiplier'],
+                    'points': points * pick['multiplier'],
                     'position_type': fpl.get_position_type(player_data['element_type'])
                 })
         
@@ -438,8 +446,10 @@ def analyze_chip_availability(standings: list, gameweek: int, bootstrap_data: Di
 
                 if chip_name and chip_event and chip_name in chip_windows:
                     start_event, stop_event = chip_windows[chip_name]
-                    # Only count as used if it was used in the current validity window
-                    if start_event <= chip_event <= stop_event:
+                    # Only count as used if it was used in the current validity window,
+                    # on or before this gameweek. The history lists chips played in
+                    # later gameweeks too when it is fetched after this gameweek.
+                    if start_event <= chip_event <= min(stop_event, gameweek):
                         used_chips.add(chip_name)
 
         # Determine available chips
@@ -528,7 +538,8 @@ def analyze_team_overload(standings: list, gameweek: int, bootstrap_data: Dict[A
     return violations
 
 
-def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any]) -> Dict[str, Any]:
+def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[Any, Any],
+                         player_points: Dict[int, int]) -> Dict[str, Any]:
     """
     Analyze the points return for each chip used this gameweek.
 
@@ -542,6 +553,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
         standings: League standings
         gameweek: Gameweek number
         bootstrap_data: Bootstrap data for player lookups
+        player_points: Player ID to points scored this gameweek
 
     Returns:
         dict: Contains 'chip_returns' (grouped by chip type) and 'skipped_managers' (managers skipped due to missing data)
@@ -578,7 +590,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                         chip_returns['triple_captain'].append({
                             'manager': manager['player_name'],
                             'player': fpl.get_player_short_name(pick['element'], bootstrap_data),
-                            'points': player_data['event_points']
+                            'points': player_points.get(pick['element'], 0)
                         })
                     break
 
@@ -590,7 +602,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                 if pick['position'] > 11:
                     player_data = fpl.get_player_by_id(pick['element'], bootstrap_data)
                     if player_data:
-                        bench_points += player_data['event_points']
+                        bench_points += player_points.get(pick['element'], 0)
 
             chip_returns['bench_boost'].append({
                 'manager': manager['player_name'],
@@ -622,7 +634,7 @@ def analyze_chip_returns(standings: list, gameweek: int, bootstrap_data: Dict[An
                     for pick in manager_data['picks']:
                         if pick['element'] == player_id and pick['multiplier'] > 0:
                             # Count points with multiplier (for captains)
-                            new_player_points += player_data['event_points'] * pick['multiplier']
+                            new_player_points += player_points.get(player_id, 0) * pick['multiplier']
                             break
 
             chip_type = 'wildcard' if active_chip == 'wildcard' else 'free_hit'

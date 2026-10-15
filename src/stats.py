@@ -111,6 +111,25 @@ def load_gameweek_data(league_id: int, gameweek: int) -> Optional[Dict[str, Any]
     }
 
 
+def load_player_points(gameweek: int) -> Optional[Dict[int, int]]:
+    """
+    Load each player's points for a single gameweek.
+
+    Gameweeks cached before live data was part of the cache have no live.json,
+    so it is fetched from the API the first time it is needed.
+
+    Args:
+        gameweek: Gameweek number
+
+    Returns:
+        dict: Player ID to points scored that gameweek, or None if unavailable
+    """
+    live_data = fpl.fetch_gameweek_live(gameweek)
+    if not live_data:
+        return None
+    return fpl.get_player_points(live_data)
+
+
 def calculate_gameweek_wins(league_id: int, gameweeks: List[int]) -> Dict[str, Any]:
     """
     Count gameweek wins per manager across all gameweeks.
@@ -291,7 +310,8 @@ def calculate_best_position_scores(league_id: int, gameweeks: List[int]) -> Dict
 
     for gameweek in gameweeks:
         gw_data = load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        player_points = load_player_points(gameweek)
+        if not gw_data or player_points is None:
             continue
 
         standings = gw_data['league_data']['standings']['results']
@@ -337,8 +357,7 @@ def calculate_best_position_scores(league_id: int, gameweeks: List[int]) -> Dict
                 position = fpl.get_position_type(element_type)
 
                 # Get player's points for this gameweek
-                event_points = player.get('event_points', 0)
-                points_scored = event_points * multiplier
+                points_scored = player_points.get(player_id, 0) * multiplier
 
                 # Add to position total
                 if position in position_totals[manager_name]:
@@ -402,7 +421,8 @@ def calculate_best_chip_returns(league_id: int, gameweeks: List[int]) -> Dict[st
 
     for gameweek in gameweeks:
         gw_data = load_gameweek_data(league_id, gameweek)
-        if not gw_data:
+        player_points = load_player_points(gameweek)
+        if not gw_data or player_points is None:
             continue
 
         standings = gw_data['league_data']['standings']['results']
@@ -438,9 +458,8 @@ def calculate_best_chip_returns(league_id: int, gameweeks: List[int]) -> Dict[st
                             player_id = pick['element']
                             player = players_by_id.get(player_id)
                             if player:
-                                event_points = player.get('event_points', 0)
                                 multiplier = pick.get('multiplier', 0)
-                                bench_points += event_points * multiplier
+                                bench_points += player_points.get(player_id, 0) * multiplier
                 bench_boost_returns.append((manager_name, bench_points, gameweek))
 
             # Triple Captain
@@ -452,7 +471,7 @@ def calculate_best_chip_returns(league_id: int, gameweeks: List[int]) -> Dict[st
                             player_id = pick['element']
                             player = players_by_id.get(player_id)
                             if player:
-                                base_points = player.get('event_points', 0)
+                                base_points = player_points.get(player_id, 0)
                                 player_name = fpl.get_player_short_name(player_id, bootstrap_data)
                                 triple_captain_returns.append((manager_name, base_points, gameweek, player_name))
                             break
@@ -481,9 +500,8 @@ def calculate_best_chip_returns(league_id: int, gameweeks: List[int]) -> Dict[st
                             if player_id not in prev_player_ids and pick.get('multiplier', 0) > 0:
                                 player = players_by_id.get(player_id)
                                 if player:
-                                    event_points = player.get('event_points', 0)
                                     multiplier = pick.get('multiplier', 1)
-                                    wildcard_points += event_points * multiplier
+                                    wildcard_points += player_points.get(player_id, 0) * multiplier
 
                         wildcard_returns.append((manager_name, wildcard_points, gameweek))
 

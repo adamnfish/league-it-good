@@ -271,6 +271,81 @@ def fetch_bootstrap_data(gameweek: Optional[int] = None) -> Optional[Dict[Any, A
         return None
 
 
+def fetch_gameweek_live(gameweek: int) -> Optional[Dict[Any, Any]]:
+    """
+    Get every player's stats for one gameweek, with caching.
+
+    Player points for a gameweek come from here rather than from the bootstrap
+    data, whose event_points field holds the points for whichever gameweek is
+    current when the bootstrap is fetched.
+
+    Args:
+        gameweek: Gameweek number
+
+    Returns:
+        dict: Live data with an 'elements' list of per-player stats, or None on error
+    """
+    cache_path = storage.get_cache_path(gameweek, "live")
+
+    # Try cache first
+    cached_data = storage.load_from_cache(cache_path)
+    if cached_data:
+        return cached_data
+
+    # Fetch from API
+    url = f"https://fantasy.premierleague.com/api/event/{gameweek}/live/"
+
+    try:
+        print(f"🌐 Fetching gameweek {gameweek} player points from API...")
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        check_live_season()
+
+        # Save to cache
+        storage.save_to_cache(data, cache_path)
+
+        return data
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching gameweek live data: {e}")
+        return None
+
+
+def get_player_points(live_data: Dict[Any, Any]) -> Dict[int, int]:
+    """
+    Map each player's ID to their points for the gameweek of the live data.
+
+    Args:
+        live_data: Live data from fetch_gameweek_live
+
+    Returns:
+        dict: Player ID to points scored that gameweek
+    """
+    return {
+        element['id']: element['stats']['total_points']
+        for element in live_data.get('elements', [])
+    }
+
+
+def get_bootstrap_gameweek(bootstrap_data: Dict[Any, Any]) -> Optional[int]:
+    """
+    Get the gameweek that was current when the bootstrap data was fetched.
+
+    Fields that change during the season, such as each player's team, describe
+    this gameweek rather than the gameweek the bootstrap is cached under.
+
+    Args:
+        bootstrap_data: Bootstrap data
+
+    Returns:
+        int: Current gameweek number, or None if no gameweek had started
+    """
+    for event in bootstrap_data.get('events', []):
+        if event.get('is_current'):
+            return event['id']
+    return None
+
+
 def get_player_by_id(player_id: int, bootstrap_data: Dict[Any, Any]) -> Optional[Dict[Any, Any]]:
     """
     Get player data from ID using bootstrap data.
