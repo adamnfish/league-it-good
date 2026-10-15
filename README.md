@@ -183,8 +183,9 @@ lig sync load         # Download only
 ```
 
 Files are stored under `<season>/cache/` in the bucket. The season defaults to
-the current one (e.g. `2026-27`, changing each July). Use `--season` or
-`LIG_SEASON` to choose another.
+the season held in the local cache. When the cache is empty, give it with
+`--season` or `LIG_SEASON` (e.g. `2026-27`). A season that doesn't match the
+cache is an error.
 
 Sync never deletes files. A file that exists on both sides with different
 contents is listed in the report and left unchanged. To replace these files,
@@ -194,6 +195,30 @@ give a direction:
   bucket keeps previous versions for 90 days.
 - `lig sync load --overwrite` replaces the local copies with the S3 ones,
   after writing a `pre-sync-*.zip` backup to the backups directory.
+
+### Seasons
+
+The cache holds one FPL season at a time. The season comes from the cached
+bootstrap data, and `lig leagues` shows it at the top right of its table.
+
+```bash
+lig season    # Show the cached season
+```
+
+Commands that write to the cache (`fetch`, `gen`, `graphs`, `import`, `sync`)
+stop with an error if the new data is from a different season. An empty cache
+takes whatever season the FPL API is serving.
+
+When a new season begins, move the old season's data aside:
+
+```bash
+lig season start-new-season --dry-run    # Preview
+lig season start-new-season
+```
+
+This moves `cache`, `summaries`, `graphs`, `backups`, `exports` and `config`
+into `~/.fpl-tools/<season>/`. League configs and avatars move too, so copy
+back any you want to keep.
 
 ## Output
 

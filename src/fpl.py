@@ -13,7 +13,45 @@ This module knows about FPL data structures but has no caching logic
 
 import requests
 from typing import Optional, Dict, Any
-from . import storage
+from . import season, storage
+
+BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
+
+# Live bootstrap data, fetched at most once per run
+_live_bootstrap: Optional[Dict[Any, Any]] = None
+# Whether the live season has been checked against the cache this run
+_live_season_checked = False
+
+
+def _request_bootstrap() -> Dict[Any, Any]:
+    """Fetch bootstrap data from the API, reusing the response for the rest of the run."""
+    global _live_bootstrap
+    if _live_bootstrap is None:
+        print("🌐 Fetching bootstrap data from API...")
+        response = requests.get(BOOTSTRAP_URL)
+        response.raise_for_status()
+        _live_bootstrap = response.json()
+    return _live_bootstrap
+
+
+def check_live_season() -> None:
+    """
+    Check that the FPL API is serving the season held in the cache.
+
+    Called before an API response is saved to the cache. The check needs the
+    live bootstrap data, so it only runs when the cache holds a season, and
+    only once per run.
+
+    Raises:
+        season.SeasonError: If the API is serving a different season
+        requests.exceptions.RequestException: If the bootstrap data can't be fetched
+    """
+    global _live_season_checked
+    if _live_season_checked:
+        return
+    if season.get_cache_season() is not None:
+        season.check_incoming(season.season_from_bootstrap(_request_bootstrap()), "The FPL API")
+    _live_season_checked = True
 
 
 def fetch_league_standings(league_id: int, gameweek: Optional[int] = None) -> Optional[Dict[Any, Any]]:
@@ -43,6 +81,8 @@ def fetch_league_standings(league_id: int, gameweek: Optional[int] = None) -> Op
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
+        if cache_path:
+            check_live_season()
         
         # Save to cache
         if cache_path:
@@ -80,6 +120,7 @@ def fetch_manager_gameweek(manager_id: int, gameweek: int) -> Optional[Dict[Any,
         response = requests.get(url)
         response.raise_for_status()
         data = response.json()
+        check_live_season()
         
         # Save to cache
         storage.save_to_cache(data, cache_path)
@@ -213,14 +254,12 @@ def fetch_bootstrap_data(gameweek: Optional[int] = None) -> Optional[Dict[Any, A
         if cached_data:
             return cached_data
     
-    # Fetch from API
-    url = "https://fantasy.premierleague.com/api/bootstrap-static/"
+    # Fetch from API, or reuse a response already fetched this run
     
     try:
-        print(f"🌐 Fetching bootstrap data from API...")
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
+        data = _request_bootstrap()
+        if cache_path:
+            season.check_incoming(season.season_from_bootstrap(data), "The FPL API")
         
         # Save to cache
         if cache_path:
@@ -327,6 +366,7 @@ def fetch_manager_history(manager_id: int, gameweek: int) -> Optional[Dict[Any, 
         data = response.json()
 
         # Save to cache
+        check_live_season()
         storage.save_to_cache(data, cache_path)
 
         return data

@@ -12,6 +12,8 @@
   - Also created `lig describe` command for inspecting backup contents
 - [x] **S3 sync** - `lig sync` merges the cache with an S3 bucket, set up by `cloudformation/league-it-good-backups.yaml`
 - [ ] **Sync config** - Include `config/` (league TOML files and avatars) in `lig sync`
+- [x] **Seasons** - Detect the cache's season from bootstrap data, stop writes from a different season, and add `lig season start-new-season` to move a season's data aside
+- [ ] **Season argument for reading** - Add `--season` to commands that read cached data (`leagues`, `stats`, `graphs`), reading from `~/.fpl-tools/<season>/`
 
 ### Data Fetching
 - [x] **Add fetch command** - Create new `lig fetch` command to preload/refresh cache data without generating summary output
@@ -25,6 +27,10 @@
     - Refreshing stale cache data
     - Warming cache for multiple leagues at once
     - Testing API connectivity
+- [ ] **Fix `fetch --force`** - `--force` does not re-fetch data that is already cached
+  - `fetch` calls `fpl.fetch_bootstrap_data`, `fetch_league_standings`, `fetch_manager_gameweek` and `fetch_manager_history`, and each of these returns the cached file when one exists, before making an API request
+  - With `--force` the cached files are left unchanged and only the progress messages differ
+  - Pass a `force` argument through to the `fpl.fetch_*` functions so they skip the cache read
 
 ### Analysis Bug Fixes
 - [x] **Handle ties in overall league positions** - When multiple managers have the same total points, they should be displayed with tied rankings
