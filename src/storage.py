@@ -113,7 +113,7 @@ def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = No
 
     Args:
         gameweek: Gameweek number
-        cache_type: Type of cache ('bootstrap', 'league', 'manager', or 'history')
+        cache_type: Type of cache ('bootstrap', 'live', 'league', 'manager', or 'history')
         league_id: League ID (required for 'league' type)
         manager_id: Manager ID (required for 'manager' and 'history' types)
 
@@ -125,6 +125,8 @@ def get_cache_path(gameweek: int, cache_type: str, league_id: Optional[int] = No
 
     if cache_type == "bootstrap":
         return os.path.join(cache_dir, "bootstrap.json")
+    elif cache_type == "live":
+        return os.path.join(cache_dir, "live.json")
     elif cache_type == "league":
         return os.path.join(cache_dir, f"league_{league_id}.json")
     elif cache_type == "manager":

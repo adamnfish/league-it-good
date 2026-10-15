@@ -101,44 +101,23 @@ def generate_summary(league_id: int, gameweek: int) -> str:
     bootstrap_data = fpl.fetch_bootstrap_data(gameweek)
     if not bootstrap_data:
         return "❌ Could not fetch player data"
+
+    live_data = fpl.fetch_gameweek_live(gameweek)
+    if not live_data:
+        return "❌ Could not fetch player points"
+    player_points = fpl.get_player_points(live_data)
     
     league_name = league_data['league']['name']
     standings = league_data['standings']['results']
 
-    # Analyze captain choices
-    print("🔄 Fetching captain details...")
-    captain_choices = analysis.analyze_captain_choices(standings, gameweek, bootstrap_data)
-    
-    # Analyze bench and positions
-    print("🔄 Analyzing bench points and position stats...")
-    bench_position_data = analysis.analyze_bench_and_positions(standings, gameweek, bootstrap_data)
-    
-    # Analyze differential picks
-    print("🔄 Analyzing differential picks...")
-    best_differential = analysis.analyze_best_differential(standings, gameweek, bootstrap_data)
-
-    # Analyze team overload violations
-    print("🔄 Checking team overload violations...")
-    team_overload = analysis.analyze_team_overload(standings, gameweek, bootstrap_data)
-
-    # Analyze transfers (if applicable)
-    transfer_stats = None
-    if gameweek > 1:
-        print("🔄 Analyzing transfers...")
-        transfer_stats = analysis.analyze_transfers(standings, gameweek, bootstrap_data)
-
-    # Analyze chip returns
-    print("🔄 Analyzing chip performance...")
-    chip_returns_data = analysis.analyze_chip_returns(standings, gameweek, bootstrap_data)
-
-    # Analyze chip availability
-    print("🔄 Checking chip availability...")
-    chip_availability = analysis.analyze_chip_availability(standings, gameweek, bootstrap_data)
-
     # Correct each manager's gameweek score from the gameweek-pinned picks cache
-    # (now populated by the analyses above) rather than trusting the standings'
-    # volatile event_total. Done before winner detection so the winner/streak and
-    # the displayed highest/lowest/average all use reliable scores.
+    # rather than trusting the standings' volatile event_total, and order the
+    # table by the corrected totals. Done before the analyses so that they list
+    # managers in this gameweek's league order, and before winner detection so
+    # the winner/streak and the displayed highest/lowest/average all use
+    # reliable scores.
+    for manager in standings:
+        fpl.fetch_manager_gameweek(manager['entry'], gameweek)
     authoritative = fpl.load_gameweek_scores(league_id, gameweek)
     if authoritative:
         scores_by_entry = {r['entry']: r for r in authoritative}
@@ -147,11 +126,51 @@ def generate_summary(league_id: int, gameweek: int) -> str:
             if record:
                 manager['event_total'] = record['event_total']
                 manager['total'] = record['total']
-
-    # Order the table and derive position changes from the now-reliable cumulative
-    # totals. calculate_proper_ranks assumes its input is sorted by total desc, and
-    # the previous week's totals come from the same gameweek-pinned picks cache.
     standings.sort(key=lambda m: m['total'], reverse=True)
+
+    # Analyze captain choices
+    print("🔄 Fetching captain details...")
+    captain_choices = analysis.analyze_captain_choices(standings, gameweek, bootstrap_data, player_points)
+    
+    # Analyze bench and positions
+    print("🔄 Analyzing bench points and position stats...")
+    bench_position_data = analysis.analyze_bench_and_positions(standings, gameweek, bootstrap_data, player_points)
+    
+    # Analyze differential picks
+    print("🔄 Analyzing differential picks...")
+    best_differential = analysis.analyze_best_differential(standings, gameweek, bootstrap_data, player_points)
+
+    # Analyze team overload violations
+    print("🔄 Checking team overload violations...")
+    # Players' teams come from the bootstrap, so they are only right for the
+    # gameweek that was current when it was fetched
+    bootstrap_gameweek = fpl.get_bootstrap_gameweek(bootstrap_data)
+    if bootstrap_gameweek == gameweek:
+        team_overload = analysis.analyze_team_overload(standings, gameweek, bootstrap_data)
+    else:
+        team_overload = []
+        print(
+            f"⚠️  Skipping team overloads: the cached bootstrap data was fetched "
+            f"during GW{bootstrap_gameweek}, not GW{gameweek}, so players' teams may be wrong"
+        )
+
+    # Analyze transfers (if applicable)
+    transfer_stats = None
+    if gameweek > 1:
+        print("🔄 Analyzing transfers...")
+        transfer_stats = analysis.analyze_transfers(standings, gameweek, bootstrap_data, player_points)
+
+    # Analyze chip returns
+    print("🔄 Analyzing chip performance...")
+    chip_returns_data = analysis.analyze_chip_returns(standings, gameweek, bootstrap_data, player_points)
+
+    # Analyze chip availability
+    print("🔄 Checking chip availability...")
+    chip_availability = analysis.analyze_chip_availability(standings, gameweek, bootstrap_data)
+
+    # Derive position changes from the reliable cumulative totals.
+    # calculate_proper_ranks assumes its input is sorted by total desc, and the
+    # previous week's totals come from the same gameweek-pinned picks cache.
     previous_records = None
     if gameweek > 1:
         previous_records = fpl.load_gameweek_scores(league_id, gameweek - 1)
@@ -545,6 +564,24 @@ def fetch(league_id, gameweek, all, force, dry_run):
     else:
         total_files_skipped += 1
         print("📊 Bootstrap data (cached)\n")
+
+    # Fetch player points for the gameweek (once, shared across all leagues)
+    live_path = storage.get_cache_path(gameweek, "live")
+    if not dry_run and (force or not storage.cache_exists(live_path)):
+        print("📊 Player points")
+        if fpl.fetch_gameweek_live(gameweek):
+            total_files_fetched += 1
+            print("  ✓ Fetched live.json\n")
+        else:
+            print("  ❌ Failed to fetch player points\n")
+            failed_fetches.append(("live", "Failed to fetch player points"))
+    elif dry_run:
+        exists = storage.cache_exists(live_path)
+        status = "exists, would skip" if exists and not force else "would fetch"
+        print(f"📊 Player points ({status})\n")
+    else:
+        total_files_skipped += 1
+        print("📊 Player points (cached)\n")
 
     # Fetch each league
     for idx, lid in enumerate(league_ids, 1):
